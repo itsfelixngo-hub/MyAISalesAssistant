@@ -1,0 +1,33 @@
+services:
+
+  mongo:
+    image: mongo
+    container_name: mongo_pro_samsung_edu
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_pro_data_samsung_edu:/data/db
+      - ./data/backup:/data/backup
+
+  nestjs:
+    image: samsung_edu-nestjs:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nestjs_pro_samsung_edu
+    user: "1000:1000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/dbsamsung_edu
+    env_file:
+      - .env
+    volumes:
+      - ./logs/requests:/app/logs/requests
+
+
+volumes:
+  mongo_pro_data_samsung_edu:

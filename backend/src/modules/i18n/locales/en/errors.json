@@ -1,0 +1,12 @@
+{
+  "CREATE_RECORD_FAIL": "Failed to create the record.",
+  "UPDATE_RECORD_FAIL": "Failed to update the record.",
+  "DELETE_RECORD_FAIL": "Failed to delete the record.",
+  "OPTION_NOT_FOUND": "The requested option was not found.",
+  "INVALID_INPUT": "Invalid input data.",
+  "UPLOAD_S3_FAIL": "File upload to S3 failed.",
+  "FETCH_RECORD_NOT_FOUND": "failed",
+  "FETCH_RECORDS_FAIL": "failed",
+  "EMAIL_EXIST": "Mail exist",
+  "SERVER_ERROR": "Server error"
+}
