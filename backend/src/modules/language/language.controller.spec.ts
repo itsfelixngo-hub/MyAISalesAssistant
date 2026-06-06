@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LanguageController } from './language.controller';
+import { LanguageService } from './language.service';
 
 describe('LanguageController', () => {
   let controller: LanguageController;
@@ -7,6 +8,15 @@ describe('LanguageController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [LanguageController],
+      providers: [
+        {
+          provide: LanguageService,
+          useValue: {
+            setLanguage: jest.fn(),
+            getLanguage: jest.fn().mockReturnValue('en'),
+          },
+        },
+      ],
     }).compile();
 
     controller = module.get<LanguageController>(LanguageController);

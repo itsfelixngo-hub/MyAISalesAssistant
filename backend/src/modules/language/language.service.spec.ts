@@ -9,7 +9,7 @@ describe('LanguageService', () => {
       providers: [LanguageService],
     }).compile();
 
-    service = module.get<LanguageService>(LanguageService);
+    service = await module.resolve<LanguageService>(LanguageService);
   });
 
   it('should be defined', () => {
