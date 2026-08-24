@@ -1,70 +1,73 @@
 #!/usr/bin/env bash
-# Bring a deploy branch up to date with main, keeping it stripped to one project.
+# Rebuild a deploy branch as "the source branch's tree, filtered to one project".
 #
 #   .github/scripts/sync-deploy-branch.sh alogweb
 #
-# A plain `git merge main` would resurrect every path this branch deliberately
-# drops, so the merge is always followed by re-applying the strip list. History
-# stays linear and the push is a fast-forward - no force push.
+# The deploy branch keeps main's exact layout and drops every path that belongs
+# to another project, so the runner checks out only what it deploys.
+#
+# Why this does not merge: the deploy branch deletes paths that main keeps, so
+# any later edit to one of those paths on main produces a modify/delete conflict
+# on every single sync. Instead the tree is derived from scratch each time, with
+# both branches recorded as parents. That cannot conflict, and it never touches
+# the working tree - which matters here, because the theme directory is bind
+# mounted into running containers.
 set -euo pipefail
 
 PROJECT="${1:-alogweb}"
 BRANCH="deploy/${PROJECT}"
 SOURCE="${SYNC_SOURCE_BRANCH:-main}"
 
-# Everything outside this list is removed from the deploy branch. Paths are
-# identical to main; only the unrelated projects go.
-KEEP_INFO="projects/${PROJECT}/, shared/, .github/workflows/deploy-${PROJECT}.yml, .gitignore"
+# Paths kept on the deploy branch. Everything else is dropped.
+KEEP_RE="^(projects/${PROJECT}/|shared/|\.github/workflows/deploy-${PROJECT}\.yml$|\.gitignore$)"
 
-log()  { printf '\n==> %s\n' "$*"; }
-die()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '\n==> %s\n' "$*"; }
+die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 cd "$(git rev-parse --show-toplevel)"
-
-[ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or stash first"
-git show-ref --verify --quiet "refs/heads/$BRANCH" || die "branch $BRANCH does not exist"
 git show-ref --verify --quiet "refs/heads/$SOURCE" || die "branch $SOURCE does not exist"
 
-START_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-restore() { git switch -q "$START_BRANCH" 2>/dev/null || true; }
-trap restore EXIT
+log "Building $BRANCH from $SOURCE"
 
-log "Syncing $BRANCH from $SOURCE"
-git switch -q "$BRANCH"
-BEFORE="$(git rev-parse HEAD)"
+TMP_INDEX="$(mktemp "${TMPDIR:-/tmp}/sync-index.XXXXXX")"
+cleanup() { rm -f "$TMP_INDEX"; }
+trap cleanup EXIT
 
-if ! git merge -q --no-edit "$SOURCE"; then
-    git merge --abort 2>/dev/null || true
-    die "merge conflict; resolve it by hand on $BRANCH"
-fi
+# Everything below runs against a scratch index; the real index and the working
+# tree are untouched.
+export GIT_INDEX_FILE="$TMP_INDEX"
+git read-tree "$SOURCE"
 
-# Anything tracked that is not in the keep list goes.
-log "Re-applying the strip list"
-mapfile -t DROP < <(
-    git ls-files \
-      | grep -vE "^(projects/${PROJECT}/|shared/|\.github/workflows/deploy-${PROJECT}\.yml$|\.gitignore$)" \
-      || true
-)
-
+mapfile -t DROP < <(git ls-files | grep -vE "$KEEP_RE" || true)
 if [ "${#DROP[@]}" -gt 0 ]; then
-    printf '    dropping %s file(s)\n' "${#DROP[@]}"
-    git rm -rq --ignore-unmatch -- "${DROP[@]}"
+    git rm -rq --cached --ignore-unmatch -- "${DROP[@]}"
 fi
 
-if git diff --cached --quiet && git diff --quiet; then
-    # The merge itself may still have advanced the branch, so report on the
-    # commit, not on whether the strip step had anything left to stage.
-    if [ "$(git rev-parse HEAD)" = "$BEFORE" ]; then
-        log "Already in sync - $BRANCH was not behind $SOURCE"
-    else
-        log "Merged $SOURCE; nothing needed stripping"
+KEPT="$(git ls-files | wc -l)"
+[ "$KEPT" -gt 0 ] || die "the keep list matched nothing - check PROJECT=$PROJECT"
+
+NEW_TREE="$(git write-tree)"
+unset GIT_INDEX_FILE
+
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    OLD_TREE="$(git rev-parse "${BRANCH}^{tree}")"
+    if [ "$NEW_TREE" = "$OLD_TREE" ]; then
+        log "Already in sync - $BRANCH already matches $SOURCE (${KEPT} files)"
+        exit 0
     fi
+    PARENTS=(-p "$(git rev-parse "$BRANCH")" -p "$(git rev-parse "$SOURCE")")
+    ACTION="Updated"
 else
-    git commit -q -m "chore: sync $BRANCH from $SOURCE
-
-Keeps: ${KEEP_INFO}"
-    log "Merged $SOURCE and re-applied the strip list"
+    PARENTS=(-p "$(git rev-parse "$SOURCE")")
+    ACTION="Created"
 fi
 
-log "$BRANCH now has $(git ls-files | wc -l) files"
+COMMIT="$(git commit-tree "$NEW_TREE" "${PARENTS[@]}" -m "chore: sync ${BRANCH} from ${SOURCE}
+
+Tree derived from ${SOURCE}, filtered to ${PROJECT}. Dropped ${#DROP[@]} path(s)
+that belong to other projects; layout is otherwise identical.")"
+
+git update-ref "refs/heads/$BRANCH" "$COMMIT"
+
+log "$ACTION $BRANCH: ${KEPT} files kept, ${#DROP[@]} dropped"
 printf '\nPush when ready:\n    git push origin %s\n' "$BRANCH"
