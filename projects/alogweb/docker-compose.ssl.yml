@@ -1,0 +1,29 @@
+# HTTPS overlay. Use only after DNS points at this host and certbot has issued
+# the certificates; the cert files must exist or nginx will not start.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+#
+# static-ssl.conf is mounted over conf.d/static.conf, replacing the plain-HTTP
+# screenshot proxy with the HTTPS one plus an HTTP->HTTPS redirect.
+
+services:
+  alogweb-nginx:
+    ports:
+      - "${HTTP_BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${HTTPS_BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - wordpress_data:/var/www/html:ro
+      - ../../shared/plugins/ai-post-content-writer:/var/www/html/wp-content/plugins/my-ai-sales-assistant:ro
+      - ./theme/apk:/var/www/html/wp-content/themes/apk:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/static-cache.conf:/etc/nginx/conf.d/00-static-cache.conf:ro
+      - ./nginx/static-ssl.conf:/etc/nginx/conf.d/static.conf:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot
+      - nginx_logs:/var/log/nginx
+      - nginx_cache:/var/cache/nginx/static
+
+volumes:
+  certbot_webroot:
+    name: ${ALOGWEB_CERTBOT_WEBROOT_VOLUME:-alogweb_certbot_webroot}

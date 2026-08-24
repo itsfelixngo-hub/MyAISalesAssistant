@@ -1,0 +1,103 @@
+# Per-project deploy. One workflow + one self-hosted runner label per project.
+# To add another project, copy this file and change PROJECT / APP_DIR / paths /
+# the runner label.
+name: Deploy alogweb
+
+on:
+  push:
+    # Deploys run from a dedicated branch, not main: main is the working copy,
+    # and merging into deploy/alogweb is the deliberate act that ships.
+    branches: [deploy/alogweb]
+    paths:
+      - 'projects/alogweb/**'
+      - 'shared/plugins/ai-post-content-writer/**'
+      - '.github/workflows/deploy-alogweb.yml'
+  workflow_dispatch:
+    inputs:
+      reseed_database:
+        description: 'DESTRUCTIVE: drop the database and re-import the dump'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-alogweb
+  cancel-in-progress: false
+
+env:
+  PROJECT: alogweb
+  APP_DIR: /home/deploy/apps/alogweb
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: [self-hosted, linux, alogweb]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preflight
+        run: |
+          set -euo pipefail
+          for tool in docker rsync curl; do
+            command -v "$tool" >/dev/null || { echo "missing on runner: $tool"; exit 1; }
+          done
+          docker compose version >/dev/null
+          docker info >/dev/null
+
+          test -d "$APP_DIR" || { echo "missing $APP_DIR - create it once on the VPS"; exit 1; }
+          test -w "$APP_DIR"
+
+          env_file="$APP_DIR/projects/$PROJECT/.env"
+          if [ ! -f "$env_file" ]; then
+            echo "missing $env_file"
+            echo "Create it once on the VPS from projects/$PROJECT/.env.production.example"
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$APP_DIR/projects/$PROJECT" >> "$GITHUB_ENV"
+
+      - name: Sync source to VPS
+        run: |
+          set -euo pipefail
+          mkdir -p "$APP_DIR/projects/$PROJECT" "$APP_DIR/shared"
+
+          # Project source. Secrets, dumps and backups on the VPS are never
+          # touched: --delete leaves excluded paths alone.
+          rsync -a --delete \
+            --exclude='.env' \
+            --exclude='database/*.sql' \
+            --exclude='database/*.sql.gz' \
+            --exclude='backups/' \
+            --exclude='uploads/' \
+            "$GITHUB_WORKSPACE/projects/$PROJECT/" "$APP_DIR/projects/$PROJECT/"
+
+          # Shared plugin/theme code mounted into the WordPress container.
+          rsync -a --delete \
+            --exclude='.env' \
+            "$GITHUB_WORKSPACE/shared/" "$APP_DIR/shared/"
+
+          chmod +x "$PROJECT_DIR"/scripts/*.sh
+
+      - name: Check database dump is present
+        run: |
+          set -euo pipefail
+          if ls "$PROJECT_DIR"/database/alogweb_current.sql* >/dev/null 2>&1; then
+            ls -lh "$PROJECT_DIR"/database/alogweb_current.sql*
+          else
+            echo "::warning::No SQL dump in $PROJECT_DIR/database/."
+            echo "::warning::First deploy needs one: scp projects/alogweb/database/alogweb_current.sql to that directory."
+          fi
+
+      - name: Deploy stack
+        env:
+          ALOGWEB_RESEED: ${{ inputs.reseed_database && '1' || '0' }}
+        run: "$PROJECT_DIR/scripts/deploy.sh"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          cd "$PROJECT_DIR"
+          docker compose --env-file .env -f docker-compose.yml ps || true
+          docker compose --env-file .env -f docker-compose.yml logs --tail=200 || true

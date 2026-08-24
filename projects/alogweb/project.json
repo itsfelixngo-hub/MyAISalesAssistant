@@ -1,0 +1,49 @@
+{
+  "id": "alogweb",
+  "name": "Alogweb",
+  "status": "active",
+  "wordpress": {
+    "service": "alogweb-wordpress",
+    "adminUrl": "http://localhost:8093/wp-admin",
+    "pluginMount": "../../shared/plugins/ai-post-content-writer",
+    "themePath": "./theme",
+    "web": "alogweb-nginx",
+    "compose": "./docker-compose.yml"
+  },
+  "databases": {
+    "wordpress": {
+      "service": "alogweb-mysql",
+      "database": "alogweb_wordpress",
+      "tablePrefix": "apk_",
+      "user": "alogweb",
+      "host": "alogweb-mysql",
+      "port": 3306
+    }
+  },
+  "shared": {
+    "plugin": "../../shared/plugins/ai-post-content-writer",
+    "ollamaUrl": "http://host.docker.internal:11435"
+  },
+  "content": {
+    "languages": [
+      "en",
+      "vi"
+    ],
+    "categories": [],
+    "referenceStores": [
+      "google-play",
+      "app-store",
+      "apkpure"
+    ]
+  },
+  "deploy": {
+    "workflow": ".github/workflows/deploy-alogweb.yml",
+    "runnerLabels": [
+      "self-hosted",
+      "linux",
+      "alogweb"
+    ],
+    "appDir": "/home/deploy/apps/alogweb",
+    "envFile": "projects/alogweb/.env"
+  }
+}
