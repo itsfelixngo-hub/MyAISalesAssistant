@@ -5,7 +5,7 @@
 #   ./scripts/seed-db.sh --force    # DROP the database and re-import (destructive)
 #
 # The dump is gitignored, so place it on the host yourself:
-#   projects/alogweb/database/alogweb_current.sql   (.sql or .sql.gz)
+#   projects/alogweb/database/<name>.sql        (.sql or .sql.gz)
 set -euo pipefail
 
 # shellcheck source=_common.sh
@@ -17,13 +17,28 @@ FORCE=0
 DB_NAME="${MYSQL_DATABASE:-alogweb_wordpress}"
 DB_USER="${MYSQL_USER:-alogweb}"
 
+# Find the dump. Named candidates come first; otherwise any single .sql in the
+# database directory is used. Operators copy whatever the export was called, so
+# insisting on one filename just makes the first deploy fail.
 DUMP="${ALOGWEB_DUMP:-}"
 if [ -z "$DUMP" ]; then
     for candidate in \
         "$PROJECT_DIR/database/alogweb_current.sql" \
-        "$PROJECT_DIR/database/alogweb_current.sql.gz"; do
+        "$PROJECT_DIR/database/alogweb_current.sql.gz" \
+        "$PROJECT_DIR/database/db_apk.sql" \
+        "$PROJECT_DIR/database/db_apk.sql.gz"; do
         [ -f "$candidate" ] && { DUMP="$candidate"; break; }
     done
+fi
+if [ -z "$DUMP" ]; then
+    mapfile -t FOUND < <(find "$PROJECT_DIR/database" -maxdepth 1 -type f \
+        \( -name '*.sql' -o -name '*.sql.gz' \) | sort)
+    case "${#FOUND[@]}" in
+        0) : ;;
+        1) DUMP="${FOUND[0]}" ;;
+        *) die "several dumps in $PROJECT_DIR/database - pick one with ALOGWEB_DUMP=<path>:
+     $(printf '%s ' "${FOUND[@]##*/}")" ;;
+    esac
 fi
 
 wait_healthy alogweb-mysql 90
@@ -45,7 +60,7 @@ elif database_seeded; then
     exit 0
 fi
 
-[ -n "$DUMP" ] && [ -f "$DUMP" ] || die "no SQL dump found. Copy one to $PROJECT_DIR/database/alogweb_current.sql or set ALOGWEB_DUMP"
+[ -n "$DUMP" ] && [ -f "$DUMP" ] || die "no SQL dump found. Copy one into $PROJECT_DIR/database/ or set ALOGWEB_DUMP"
 
 log "Importing $(basename "$DUMP") ($(du -h "$DUMP" | cut -f1)) into '$DB_NAME'"
 import() {
