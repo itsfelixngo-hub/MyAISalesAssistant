@@ -66,3 +66,9 @@ package-lock.json
 storage/
 data/backup/
 backup*/
+# Local multi-project WordPress data
+/projects/*/.env
+/projects/*/database/*.sql
+/projects/*/database/*.sql.gz
+/projects/*/uploads/
+/projects/*/backups/

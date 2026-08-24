@@ -10,11 +10,14 @@ services:
         condition: service_healthy
     ports:
       - "8083:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       WORDPRESS_DB_HOST: mysql:3306
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
+      AIPCW_PROJECT_ID: my-ai-sales-assistant
       WORDPRESS_CONFIG_EXTRA: |
         define('WP_DEBUG', true);
         define('WP_DEBUG_LOG', true);
@@ -22,7 +25,30 @@ services:
         define('FS_METHOD', 'direct');
     volumes:
       - wordpress_data:/var/www/html
-      - ./plugin:/var/www/html/wp-content/plugins/my-ai-sales-assistant
+      - ./shared/plugins/ai-post-content-writer:/var/www/html/wp-content/plugins/my-ai-sales-assistant
+    networks:
+      - maa_net
+
+  aipcw_worker:
+    image: wordpress:cli-php8.1
+    container_name: maa_aipcw_worker_dev
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    working_dir: /var/www/html
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      AIPCW_PROJECT_ID: my-ai-sales-assistant
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./shared/plugins/ai-post-content-writer:/var/www/html/wp-content/plugins/my-ai-sales-assistant
+    command: sh -c "while true; do wp aipcw worker --path=/var/www/html --once || true; sleep 5; done"
     networks:
       - maa_net
 

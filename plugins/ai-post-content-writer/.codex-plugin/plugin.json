@@ -1,0 +1,23 @@
+{
+  "name": "ai-post-content-writer",
+  "version": "0.1.0",
+  "description": "Generate original, reviewable post drafts from existing posts.",
+  "author": {
+    "name": "My AI Sales Assistant"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI Post Content Writer",
+    "shortDescription": "Turn existing posts into original AI drafts.",
+    "longDescription": "Use existing post content as context to create fresh titles, excerpts, articles, and SEO metadata while preserving facts and keeping every result reviewable.",
+    "developerName": "My AI Sales Assistant",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Rewrite this post for a new audience.",
+      "Create a fresh article from these posts.",
+      "Generate SEO metadata for this draft."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
