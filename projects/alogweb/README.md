@@ -89,8 +89,11 @@ scp projects/alogweb/database/alogweb_current.sql \
   deploy@VPS:/home/deploy/apps/alogweb/projects/alogweb/database/
 ```
 
-`seed-db.sh` chỉ import khi database còn rỗng. Các lần deploy sau không đụng vào
-dữ liệu.
+`seed-db.sh` tự tìm dump trong `database/`: ưu tiên `alogweb_current.sql` rồi
+`db_apk.sql`, nếu không có thì lấy file `.sql` duy nhất trong thư mục. Có nhiều
+file thì nó dừng và bắt chỉ rõ bằng `ALOGWEB_DUMP=<đường-dẫn>`.
+
+Chỉ import khi database còn rỗng. Các lần deploy sau không đụng vào dữ liệu.
 
 > Dùng `db_apk.sql` (prefix `apk_`) — đây là dump của site thật, có đủ post meta
 > `_screenshots`, `_info`, `_feature`, `_store_game` mà theme `apk` cần.
