@@ -103,7 +103,33 @@ dữ liệu.
 
 ## Deploy
 
-Tự động khi push vào `main` có thay đổi trong `projects/alogweb/**` hoặc
+### Mô hình branch
+
+`main` là bản làm việc, chứa toàn bộ repo. `deploy/alogweb` chỉ chứa đúng
+project này — **cùng bố cục đường dẫn**, chỉ bỏ các project không liên quan:
+
+| | main | deploy/alogweb |
+|---|---|---|
+| Số file | 212 | 76 |
+| Giữ | tất cả | `projects/alogweb/`, `shared/`, `.github/workflows/deploy-alogweb.yml`, `.gitignore` |
+
+Workflow chỉ chạy khi push vào `deploy/alogweb`, nên push lên `main` không deploy.
+
+Đồng bộ từ main sang branch deploy:
+
+```bash
+.github/scripts/sync-deploy-branch.sh alogweb
+git push origin deploy/alogweb
+```
+
+> Đừng `git merge main` thẳng vào branch deploy — merge sẽ **kéo ngược** toàn bộ
+> file đã xoá (`backend/`, các project khác, compose dev/prod). Script làm merge
+> rồi áp lại danh sách giữ trong cùng một bước, và giữ history tuyến tính nên
+> push luôn là fast-forward, không cần force.
+
+### Kích hoạt
+
+Tự động khi push vào `deploy/alogweb` có thay đổi trong `projects/alogweb/**` hoặc
 `shared/plugins/ai-post-content-writer/**`. Chạy tay ở tab Actions →
 *Deploy alogweb* → *Run workflow*, có tuỳ chọn `reseed_database` để drop và
 import lại dump (mất toàn bộ thay đổi hiện có, chỉ dùng lúc test).
