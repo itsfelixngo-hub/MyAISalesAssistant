@@ -12,6 +12,17 @@ set -euo pipefail
 
 [ "$#" -gt 0 ] || die "usage: wp.sh <wp-cli args...>"
 
+# Without this the failure surfaces as a raw "network ... not found" from the
+# docker daemon, which does not say the obvious thing: either the stack is down,
+# or this is being run from a checkout whose .env names a different network.
+NETWORK="${ALOGWEB_NETWORK:-alogweb_net}"
+if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
+    die "docker network '$NETWORK' does not exist.
+     Either the stack is not running (./scripts/deploy.sh), or you are in a
+     different checkout - this one reads $ENV_FILE.
+     Networks present: $(docker network ls --format '{{.Name}}' | paste -sd' ' -)"
+fi
+
 # Without this the throwaway container skips WORDPRESS_CONFIG_EXTRA and WP-CLI
 # falls back to the siteurl stored in the dump, printing the wrong URLs.
 WP_CLI_CONFIG_EXTRA="define('WP_HOME', '${SITE_URL:-http://localhost:8093}');
