@@ -122,10 +122,18 @@ Workflow chỉ chạy khi push vào `deploy/alogweb`, nên push lên `main` khô
 git push origin deploy/alogweb
 ```
 
-> Đừng `git merge main` thẳng vào branch deploy — merge sẽ **kéo ngược** toàn bộ
-> file đã xoá (`backend/`, các project khác, compose dev/prod). Script làm merge
-> rồi áp lại danh sách giữ trong cùng một bước, và giữ history tuyến tính nên
-> push luôn là fast-forward, không cần force.
+> Đừng `git merge main` thẳng vào branch deploy. Branch này **xoá** những đường
+> dẫn mà main giữ, nên mỗi lần main sửa một file như thế là một xung đột
+> modify/delete — lặp lại ở mọi lần merge.
+>
+> Script không merge: nó **dựng lại tree** từ main rồi lọc, ghi cả hai branch làm
+> parent. Cách này không thể xung đột, và chạy qua index tạm nên **không đụng vào
+> working tree** — quan trọng vì thư mục theme đang bind mount vào container đang
+> chạy.
+
+Nếu thay đổi trên main không chạm vào `projects/alogweb/` hay `shared/`, script
+báo "Already in sync" và không tạo commit — đúng, vì tree của branch deploy không
+đổi.
 
 ### Kích hoạt
 
