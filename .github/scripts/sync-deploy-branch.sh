@@ -31,6 +31,7 @@ trap restore EXIT
 
 log "Syncing $BRANCH from $SOURCE"
 git switch -q "$BRANCH"
+BEFORE="$(git rev-parse HEAD)"
 
 if ! git merge -q --no-edit "$SOURCE"; then
     git merge --abort 2>/dev/null || true
@@ -51,12 +52,18 @@ if [ "${#DROP[@]}" -gt 0 ]; then
 fi
 
 if git diff --cached --quiet && git diff --quiet; then
-    log "Already in sync - nothing to commit"
+    # The merge itself may still have advanced the branch, so report on the
+    # commit, not on whether the strip step had anything left to stage.
+    if [ "$(git rev-parse HEAD)" = "$BEFORE" ]; then
+        log "Already in sync - $BRANCH was not behind $SOURCE"
+    else
+        log "Merged $SOURCE; nothing needed stripping"
+    fi
 else
     git commit -q -m "chore: sync $BRANCH from $SOURCE
 
 Keeps: ${KEEP_INFO}"
-    log "Committed"
+    log "Merged $SOURCE and re-applied the strip list"
 fi
 
 log "$BRANCH now has $(git ls-files | wc -l) files"
