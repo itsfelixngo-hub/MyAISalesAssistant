@@ -551,11 +551,13 @@ function screenshot_rewrite_lh3_in_url($url) {
  * that still passes its own WP_Query.
  */
 function alogweb_pagination() {
+	$chevron = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="%s"/></svg>';
+
 	$links = paginate_links( array(
 		'type'      => 'array',
 		'mid_size'  => 1,
-		'prev_text' => '← Previous',
-		'next_text' => 'Next →',
+		'prev_text' => sprintf( $chevron, 'm15 18-6-6 6-6' ) . '<span class="vh">Previous page</span>',
+		'next_text' => sprintf( $chevron, 'm9 18 6-6-6-6' ) . '<span class="vh">Next page</span>',
 	) );
 	if ( empty( $links ) ) { return; }
 	echo '<nav class="pager" aria-label="Pagination"><ul>';
