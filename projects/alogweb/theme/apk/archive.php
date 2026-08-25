@@ -12,6 +12,8 @@ $count = isset($term->count) ? (int) $term->count : 0;
 	<?php the_archive_description('<p class="page-desc">', '</p>'); ?>
 </div>
 
+<?php alogweb_sort_bar(); ?>
+
 <?php if (have_posts()) : ?>
 	<div class="grid">
 		<?php while (have_posts()) { the_post(); get_template_part('parts/app', 'card'); } ?>

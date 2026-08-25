@@ -22,6 +22,22 @@ x-wordpress-env: &wordpress-env
     # ANY non-empty value is truthy, including the string "false".
     WORDPRESS_DEBUG: ${WORDPRESS_DEBUG:-}
     AIPCW_PROJECT_ID: alogweb
+    # Contact form. Same variable names the ExchangeHub app already reads, so
+    # one set of SMTP values configures both sites. An empty CONTACT_SMTP_HOST
+    # means no SMTP is configured and the form reports a send failure rather
+    # than pretending the message went out.
+    SITE_CONTACT_EMAIL: ${SITE_CONTACT_EMAIL:-}
+    CONTACT_FORWARD_TO: ${CONTACT_FORWARD_TO:-}
+    CONTACT_FROM_EMAIL: ${CONTACT_FROM_EMAIL:-}
+    CONTACT_SMTP_HOST: ${CONTACT_SMTP_HOST:-}
+    CONTACT_SMTP_PORT: ${CONTACT_SMTP_PORT:-587}
+    CONTACT_SMTP_USER: ${CONTACT_SMTP_USER:-}
+    CONTACT_SMTP_PASSWORD: ${CONTACT_SMTP_PASSWORD:-}
+    CONTACT_SMTP_USE_TLS: ${CONTACT_SMTP_USE_TLS:-true}
+    CONTACT_SMTP_TLS_VERIFY: ${CONTACT_SMTP_TLS_VERIFY:-true}
+    CONTACT_RATE_LIMIT_SECONDS: ${CONTACT_RATE_LIMIT_SECONDS:-60}
+    CONTACT_MIN_SUBMIT_SECONDS: ${CONTACT_MIN_SUBMIT_SECONDS:-3}
+    CONTACT_ROTATION_TOLERANCE: ${CONTACT_ROTATION_TOLERANCE:-8}
     # WP_HOME/WP_SITEURL are forced here so they win over the values stored in
     # the imported dump. Change SITE_URL in .env when the DNS is pointed at the
     # VPS, then redeploy - no database edit needed.

@@ -11,6 +11,8 @@ $found = (int) $GLOBALS['wp_query']->found_posts;
 	<p class="res-count"><?php echo esc_html($found); ?> results</p>
 </div>
 
+<?php alogweb_sort_bar(); ?>
+
 <?php if (have_posts()) : ?>
 	<div class="grid">
 		<?php while (have_posts()) { the_post(); get_template_part('parts/app', 'card', array('highlight' => $term)); } ?>
