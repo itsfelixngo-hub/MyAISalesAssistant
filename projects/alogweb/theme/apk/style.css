@@ -100,9 +100,12 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block;}
 .spec s{text-decoration:none; color:var(--line-strong);}
 
 .rating{display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px;
-  color:var(--gold); font-variant-numeric:tabular-nums;}
-.meter{width:34px; height:3px; border-radius:2px; background:var(--surface-3); overflow:hidden; flex:none;}
-.meter i{display:block; height:100%; background:var(--gold);}
+  color:var(--gold); font-variant-numeric:tabular-nums; line-height:1;}
+/* No width here on purpose: the canvas attributes already carry the right
+   intrinsic size for each variant, and a fixed value in CSS would squash the
+   larger stars on the detail page. */
+.rating canvas{display:block; flex:none;}
+.rating b{font-weight:400;}
 
 .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; height:40px; padding:0 18px;
   background:var(--accent); color:var(--accent-ink); border:none; border-radius:var(--r);

@@ -82,6 +82,7 @@ function alogweb_theme_setup() {
 		// any more, and they cost 141KB for a menu toggle.
 		wp_enqueue_style( 'alogweb-fonts', 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap', array(), null );
 		wp_enqueue_style( 'alogweb-style', get_stylesheet_uri(), array( 'alogweb-fonts' ), wp_get_theme()->get( 'Version' ) );
+		wp_enqueue_script( 'alogweb-stars', get_theme_file_uri( '/assets/js/rating-stars.js' ), array(), '2.0.0', true );
 	}
 	add_action( 'wp_enqueue_scripts', 'alog_scripts' );
 
@@ -563,4 +564,24 @@ function alogweb_pagination() {
 	echo '<nav class="pager" aria-label="Pagination"><ul>';
 	foreach ( $links as $link ) { echo '<li>' . $link . '</li>'; }
 	echo '</ul></nav>';
+}
+
+/**
+ * Rating: the score as text, with a canvas the script fills with stars.
+ *
+ * The number stays in the markup on purpose - it is the actual data, and it has
+ * to survive a crawler, a screen reader and the moment before the script runs.
+ */
+function alogweb_rating_html( $app, $size = 12 ) {
+	if ( empty( $app['rating'] ) || $app['rating'] <= 0 ) { return ''; }
+	$score = number_format( (float) $app['rating'], 2 );
+
+	return sprintf(
+		'<span class="rating" role="img" aria-label="%1$s"><canvas class="stars" data-rating="%2$s" data-size="%3$d" width="%4$d" height="%3$d"></canvas><b>%5$s</b></span>',
+		esc_attr( sprintf( 'Rated %s out of 5', $score ) ),
+		esc_attr( $score ),
+		(int) $size,
+		(int) ( 5 * $size + 4 * max( 1, round( $size * 0.18 ) ) ),
+		esc_html( $score )
+	);
 }

@@ -52,7 +52,7 @@ if ($featured->have_posts()) : ?>
 						<?php endif; ?>
 					</span>
 					<?php if ($app['rating'] > 0) : ?>
-						<span class="rating"><?php echo esc_html(number_format($app['rating'], 2)); ?><span class="meter"><i style="width:<?php echo esc_attr($app['rating_pct']); ?>%"></i></span></span>
+						<?php echo alogweb_rating_html($app, 12); ?>
 					<?php endif; ?>
 				</a>
 			</article>
