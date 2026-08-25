@@ -96,6 +96,19 @@ thầm lặng thì lần import trông vẫn như thành công.
 
 Chỉ import khi database còn rỗng. Các lần deploy sau không đụng vào dữ liệu.
 
+### Dọn database
+
+```bash
+./scripts/clean-db.sh                      # xem sẽ xoá gì
+./scripts/clean-db.sh --yes                # xoá
+./scripts/clean-db.sh --yes --comments     # xoá cả comment spam và chờ duyệt
+```
+
+Xoá revision, auto-draft, edit lock, oEmbed cache, transient, trạng thái job AI,
+rồi dọn meta mồ côi và tính lại `comment_count`. Tự backup trước.
+
+**Không đụng tới** bài đã đăng, draft, user, và `_aipcw_backup_history`.
+
 ### Mang dữ liệu sang máy chủ khác
 
 ```bash
