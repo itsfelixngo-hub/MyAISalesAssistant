@@ -72,13 +72,17 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block; min-height:56vh;
 .mark b{color:var(--accent);}
 .mark i{font-style:normal; font-family:var(--font-mono); font-size:10px; color:var(--ink-3); letter-spacing:0; align-self:flex-start; margin-left:3px;}
 
-.search{flex:1; display:flex; align-items:center; gap:8px; height:36px; padding:0 12px; min-width:0;
+/* Namespaced on purpose: WordPress puts "search" and "tag" on <body> via
+   body_class(), so a bare .site-search rule styles the whole document on every
+   search results page - which is exactly what it did, turning body into a flex
+   row and collapsing the layout. */
+.site-search{flex:1; display:flex; align-items:center; gap:8px; height:36px; padding:0 12px; min-width:0;
   background:var(--surface-2); border:1px solid transparent; border-radius:var(--r); color:var(--ink-3);}
-.search:hover{border-color:var(--line-strong);}
-.search:focus-within{border-color:var(--accent); background:var(--surface);}
-.search svg{flex:none;}
-.search input{flex:1; min-width:0; border:0; background:none; font:inherit; font-size:13.5px; color:var(--ink); outline:none;}
-.search input::placeholder{color:var(--ink-3);}
+.site-search:hover{border-color:var(--line-strong);}
+.site-search:focus-within{border-color:var(--accent); background:var(--surface);}
+.site-search svg{flex:none;}
+.site-search input{flex:1; min-width:0; border:0; background:none; font:inherit; font-size:13.5px; color:var(--ink); outline:none;}
+.site-search input::placeholder{color:var(--ink-3);}
 
 .hd-links{display:flex; gap:4px; flex:none;}
 .hd-links a{font-size:13.5px; font-weight:500; color:var(--ink-2); padding:7px 10px; border-radius:var(--r-sm);}
@@ -135,9 +139,13 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block; min-height:56vh;
 mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2px;}
 
 /* ============================================================ grid + card */
-.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:1px;
-  background:var(--line); border:1px solid var(--line); border-radius:var(--r); overflow:hidden;}
-.card{display:flex; gap:12px; padding:13px; background:var(--surface); min-width:0;}
+/* Separators are drawn on the cards, not by showing a coloured background
+   through 1px gaps: a last row that is not full would otherwise leave the gap
+   colour exposed as a large grey block where the missing cards would be. */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r); overflow:hidden;}
+.card{display:flex; gap:12px; padding:13px; background:var(--surface); min-width:0;
+  box-shadow:inset -1px -1px 0 var(--line);}
 .card:hover{background:var(--surface-2);}
 .card > img,.card-noicon{width:52px; height:52px; border-radius:12px; flex:none; border:1px solid var(--line); object-fit:cover;}
 .card-noicon{display:grid; place-items:center; background:var(--surface-2); color:var(--ink-3); font-weight:700; font-size:20px;}
@@ -158,7 +166,7 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .feat-c .nm{font-size:14px; font-weight:600; letter-spacing:-.015em; line-height:1.2;
   overflow:hidden; display:-webkit-box; -webkit-line-clamp:1; line-clamp:1; -webkit-box-orient:vertical;}
 .feat-c .rating{margin-left:auto;}
-.tag{position:absolute; top:10px; left:10px; font-family:var(--font-mono); font-size:10px; letter-spacing:.08em;
+.feat-tag{position:absolute; top:10px; left:10px; font-family:var(--font-mono); font-size:10px; letter-spacing:.08em;
   text-transform:uppercase; background:var(--ink); color:var(--ground); padding:3px 7px; border-radius:3px;}
 
 /* ============================================================ app detail */

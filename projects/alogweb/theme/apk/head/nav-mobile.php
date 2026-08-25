@@ -10,7 +10,7 @@
 		    <span class="slogan">Home stays online</span>
 		</div>
 		 <form method="get" action="<?=bloginfo('url');?>">
-			<div class="search">
+			<div class="site-search">
 			  <input type="checkbox" id="trigger" class="search__checkbox" />
 			  <label class="search__label-init" for="trigger"></label>
 			  <label class="search__label-active" for="trigger"></label>
