@@ -54,6 +54,12 @@ fi
 log "Container status"
 dc ps
 
+# The sort filters read meta derived from _info. A site that has never run
+# this - every existing install, the first time this theme is deployed - would
+# serve an empty page for "Top rated" and "Lightest".
+log "Rebuilding the sort index"
+"$SCRIPTS_DIR/wp.sh" alogweb reindex || warn "reindex failed; sorting may be incomplete"
+
 log "Purging the page cache"
 "$SCRIPTS_DIR/purge-cache.sh" >/dev/null || warn "cache purge failed, continuing"
 
