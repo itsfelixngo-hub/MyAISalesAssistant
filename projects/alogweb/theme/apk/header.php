@@ -17,7 +17,7 @@
 			alog<b>web</b><i>APK</i>
 		</a>
 
-		<form class="search" role="search" method="get" action="<?php echo esc_url(home_url('/')); ?>">
+		<form class="site-search" role="search" method="get" action="<?php echo esc_url(home_url('/')); ?>">
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
 			<label class="vh" for="s">Search games and apps</label>
 			<input type="search" id="s" name="s" placeholder="Search games and apps…" value="<?php echo esc_attr(get_search_query()); ?>">

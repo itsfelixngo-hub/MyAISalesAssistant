@@ -38,7 +38,7 @@ if ($featured->have_posts()) : ?>
 			<?php $first = true; while ($featured->have_posts()) : $featured->the_post(); $app = alogweb_app(); $shot = !empty($app['screenshots']) ? screenshot_rewrite_lh3_in_url($app['screenshots'][0]) : ''; ?>
 			<article class="feat-c">
 				<a class="shot" href="<?php echo esc_url($app['permalink']); ?>">
-					<?php if ($first) : ?><span class="tag">Editor&rsquo;s pick</span><?php endif; ?>
+					<?php if ($first) : ?><span class="feat-tag">Editor&rsquo;s pick</span><?php endif; ?>
 					<?php if ($shot) : ?>
 						<img src="<?php echo esc_url($shot); ?>" loading="lazy" decoding="async" alt="<?php echo esc_attr($app['name']); ?> screenshot">
 					<?php endif; ?>
