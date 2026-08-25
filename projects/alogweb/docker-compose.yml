@@ -22,6 +22,8 @@ x-wordpress-env: &wordpress-env
     # ANY non-empty value is truthy, including the string "false".
     WORDPRESS_DEBUG: ${WORDPRESS_DEBUG:-}
     AIPCW_PROJECT_ID: alogweb
+    # 1 puts the WordPress admin bar back on the front end.
+    ALOGWEB_ADMIN_BAR: ${ALOGWEB_ADMIN_BAR:-0}
     # Contact form. Same variable names the ExchangeHub app already reads, so
     # one set of SMTP values configures both sites. An empty CONTACT_SMTP_HOST
     # means no SMTP is configured and the form reports a send failure rather
