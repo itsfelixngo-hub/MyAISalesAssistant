@@ -29,6 +29,10 @@ x-wordpress-env: &wordpress-env
     AIPCW_PROJECT_ID: alogweb
     # 1 puts the WordPress admin bar back on the front end.
     ALOGWEB_ADMIN_BAR: ${ALOGWEB_ADMIN_BAR:-0}
+    # Pin the screenshot proxy host. Empty derives it from SITE_URL, which
+    # is right for the apex and wrong for anything the wildcard cert does
+    # not cover - or for an IP, where nothing is derived at all.
+    ALOGWEB_STATIC_HOST: ${ALOGWEB_STATIC_HOST:-}
     # Contact form. Same variable names the ExchangeHub app already reads, so
     # one set of SMTP values configures both sites. An empty CONTACT_SMTP_HOST
     # means no SMTP is configured and the form reports a send failure rather

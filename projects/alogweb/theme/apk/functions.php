@@ -559,23 +559,45 @@ if(!function_exists("ads_single")):
     }
 endif;
 
-function screenshot_rewrite_lh3_in_url($url) {
-    if (empty($url)) return $url;
+/**
+ * The host that fronts the screenshot proxy, or '' when there is not one.
+ *
+ * Derived from the site host by default, but overridable: the certificate here
+ * is a *.alogweb.com wildcard, and a wildcard matches exactly one label. A site
+ * URL of apk.alogweb.com would derive static.apk.alogweb.com, which that
+ * certificate does not cover. ALOGWEB_STATIC_HOST pins it instead.
+ */
+function alogweb_static_host() {
+    $explicit = getenv('ALOGWEB_STATIC_HOST');
+    if (is_string($explicit) && $explicit !== '') { return $explicit; }
 
-    // Lấy host từ site URL
     $host = parse_url(home_url(), PHP_URL_HOST);
-    if (!$host) return $url;
+    if (!$host) { return ''; }
 
-    // Tuỳ chọn: bỏ www.
-    $host = preg_replace('/^www\./i', '', $host);
+    // An IP, or a name with no dot, cannot have a "static." sibling that
+    // resolves - which is exactly what the IP:port testing phase looks like.
+    if (filter_var($host, FILTER_VALIDATE_IP)) { return ''; }
+    if (strpos($host, '.') === false) { return ''; }
 
-    // Tạo host tĩnh: static.example.com
-    $staticHost = 'static.' . $host;
+    return 'static.' . preg_replace('/^www\./i', '', $host);
+}
 
-    // Thay domain ảnh lh3 -> static.{host}/lh3...
+/**
+ * Point a Google screenshot URL at the proxy, or leave it alone.
+ *
+ * Returning the original is the right fallback, not a broken proxy URL: the
+ * image still loads, straight from Google, which is where the proxy would have
+ * fetched it anyway.
+ */
+function screenshot_rewrite_lh3_in_url($url) {
+    if (empty($url)) { return $url; }
+
+    $static = alogweb_static_host();
+    if ($static === '') { return $url; }
+
     return preg_replace(
-        '#^https?://([^.\/]+)\.googleusercontent\.com/#',
-        'https://' . $staticHost . '/lh3.googleusercontent.com/',
+        '#^https?://([^./]+)\.googleusercontent\.com/#',
+        'https://' . $static . '/lh3.googleusercontent.com/',
         $url
     );
 }
