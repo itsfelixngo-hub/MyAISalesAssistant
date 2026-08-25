@@ -7,6 +7,9 @@
 
 include 'inc/class_games.php';
 include 'inc/alogweb-data.php';
+include 'inc/alogweb-index.php';
+include 'inc/alogweb-sort.php';
+include 'inc/alogweb-contact.php';
 // include 'inc/class_yoast_seo.php';
 /*
  * Theme setup must run on after_setup_theme. Calling __() while this file is
@@ -83,6 +86,9 @@ function alogweb_theme_setup() {
 		wp_enqueue_style( 'alogweb-fonts', 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap', array(), null );
 		wp_enqueue_style( 'alogweb-style', get_stylesheet_uri(), array( 'alogweb-fonts' ), wp_get_theme()->get( 'Version' ) );
 		wp_enqueue_script( 'alogweb-stars', get_theme_file_uri( '/assets/js/rating-stars.js' ), array(), '2.0.0', true );
+		if ( is_page_template( 'template-pages/contact.php' ) ) {
+			wp_enqueue_script( 'alogweb-rotate', get_theme_file_uri( '/assets/js/contact-rotate.js' ), array(), '2.0.0', true );
+		}
 	}
 	add_action( 'wp_enqueue_scripts', 'alog_scripts' );
 

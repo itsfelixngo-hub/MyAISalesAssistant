@@ -259,6 +259,57 @@ Chạy tay một vòng mà không cần bật container:
 > `_aipcw_backup_history` (tối đa 10 bản) nên revert được từ trang admin. Dùng
 > `mode=draft` nếu chỉ muốn sinh bài nháp và giữ nguyên bài gốc.
 
+## Form liên hệ
+
+Page template `theme/apk/template-pages/contact.php`, PHP thuần, không plugin.
+Gán template cho một Page trong wp-admin (hiện là trang **Contact us**, `/contact`).
+
+**Captcha xoay.** Server sinh góc ngẫu nhiên bội số 15°, lưu vào transient 15
+phút, rồi dùng GD xoay ảnh trước khi gửi đi — **góc không bao giờ xuất hiện trong
+HTML**. Người dùng kéo thanh trượt cho mũi tên thẳng đứng. ExchangeHub xoay bằng
+CSS transform nên bot đọc được đáp án ngay trong trang; đây là chỗ khác biệt có
+chủ đích.
+
+Ngoài captcha còn bốn lớp: honeypot, thời gian tối thiểu 3 giây, rate limit 60
+giây theo IP đã băm, và nonce của WordPress.
+
+**Tên trường bắt buộc có tiền tố `cf_`.** WordPress đọc public query var từ
+`$_POST` chứ không chỉ `$_GET`, nên một trường tên `name` khiến WP tưởng đang tìm
+bài có slug đó và trả 404 trước khi template kịp chạy. `s`, `order`, `author`,
+`title` cũng là bẫy tương tự.
+
+### SMTP dùng chung với ExchangeHub
+
+Trùng tên biến với app ExchangeHub, nên một bộ giá trị cấu hình được cả hai site:
+
+```
+SITE_CONTACT_EMAIL   CONTACT_FORWARD_TO      CONTACT_FROM_EMAIL
+CONTACT_SMTP_HOST    CONTACT_SMTP_PORT       CONTACT_SMTP_USER
+CONTACT_SMTP_PASSWORD  CONTACT_SMTP_USE_TLS  CONTACT_SMTP_TLS_VERIFY
+CONTACT_RATE_LIMIT_SECONDS  CONTACT_MIN_SUBMIT_SECONDS  CONTACT_ROTATION_TOLERANCE
+```
+
+`CONTACT_SMTP_HOST` để trống thì `wp_mail()` rơi về mailer cục bộ và form **báo
+lỗi gửi** thay vì giả vờ đã gửi.
+
+> `CONTACT_SMTP_HOST` phải là hostname hợp lệ hoặc IP. PHPMailer từ chối tên có
+> dấu gạch dưới và chỉ báo "Could not connect to SMTP host", khiến ta đi tìm nhầm
+> phía mạng. Code ghi log rõ ràng khi gặp trường hợp này.
+
+Trang `/contact` và ảnh captcha đã được loại khỏi page cache — nonce và token chỉ
+dùng một lần.
+
+### Test gửi mail cục bộ
+
+```bash
+docker run -d --name alogweb-mailpit --network alogweb_net \
+  -p 127.0.0.1:8025:8025 axllent/mailpit
+```
+
+Đặt `CONTACT_SMTP_HOST=alogweb-mailpit`, `CONTACT_SMTP_PORT=1025`,
+`CONTACT_SMTP_USE_TLS=false` trong `.env`, deploy lại container wordpress rồi xem
+mail ở <http://localhost:8025>. Xong thì `docker rm -f alogweb-mailpit`.
+
 ## wp-cron
 
 `DISABLE_WP_CRON=true` vì WordPress spawn cron bằng cách tự gọi `SITE_URL` từ
@@ -283,6 +334,9 @@ Mono** cho thông số kỹ thuật.
 | `index.php` | Dải nổi bật + lưới theo danh mục |
 | `single.php` | Thẻ định danh dính, dải screenshot, bài viết, app liên quan |
 | `archive.php` `search.php` `page.php` | Dùng lại lưới của trang chủ |
+| `inc/alogweb-sort.php` | Hàng lọc sắp xếp cho danh mục và tìm kiếm |
+| `inc/alogweb-index.php` | Meta phái sinh để sort được theo điểm và dung lượng |
+| `inc/alogweb-contact.php` | Captcha xoay, kiểm tra và gửi mail |
 | `template-pages/download-template.php` | Trang tải, không có điều hướng |
 | `style.css` | 250 dòng (bản cũ 1126) |
 
@@ -299,6 +353,20 @@ Tiêu đề bài dài vẫn hiện, nhưng ở vị trí headline của phần G
 Trước đây `_info`, `_feature`, `_screenshots` được đọc trực tiếp ở 11 chỗ với
 cách khác nhau — đó là lý do `single.php` gọi `sizeof()` lên một chuỗi và fatal
 trên PHP 8. Không thêm chỗ nào đọc meta trực tiếp nữa.
+
+### Sắp xếp kết quả
+
+`ratingValue` và `size` nằm trong object serialize `_info` nên MySQL không
+`ORDER BY` được. `inc/alogweb-index.php` tạo hai meta phái sinh
+(`_alogweb_rating`, `_alogweb_size_bytes`), cập nhật khi lưu bài và dựng lại
+toàn bộ bằng:
+
+```bash
+./scripts/wp.sh alogweb reindex
+```
+
+`_info` vẫn là nguồn sự thật; hai meta kia chỉ để sort. Sắp xếp áp qua
+`pre_get_posts` nên giữ đúng thứ tự khi sang trang.
 
 ### Đã gỡ bỏ
 

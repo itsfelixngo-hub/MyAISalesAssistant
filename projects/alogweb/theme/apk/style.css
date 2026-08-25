@@ -115,6 +115,10 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block;}
 .btn-2:hover{background:var(--surface-2); color:var(--ink);}
 .btn-lg{height:46px; font-size:15px; width:100%;}
 
+.filters{display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin:0 0 16px;}
+.filters .lbl{font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3); margin-right:3px;}
+
 .page-hd{margin:0 0 18px;}
 .page-hd h1{font-size:26px; font-weight:700; letter-spacing:-.03em;}
 .page-desc{font-family:var(--font-read); color:var(--ink-2); margin:8px 0 0; max-width:64ch;}
@@ -209,6 +213,42 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .dl-note{font-family:var(--font-read); font-size:14px; color:var(--ink-3); margin:16px 0 0; line-height:1.55;}
 .dl-back{margin:14px 0 0; font-size:13px;}
 .dl-back a{color:var(--accent);}
+
+/* ============================================================ contact form */
+.contact{max-width:44rem;}
+.notice{border:1px solid var(--line); border-left-width:3px; border-radius:var(--r);
+  padding:12px 14px; margin:0 0 18px; font-size:14.5px;}
+.notice-ok{border-left-color:var(--accent); background:var(--accent-wash); color:var(--ink);}
+.notice-bad{border-left-color:#B4402E; background:var(--surface-2); color:var(--ink);}
+.notice ul{margin:8px 0 0; padding-left:1.1em;}
+.notice li{font-size:14px; color:var(--ink-2); margin-bottom:4px;}
+
+.cform{display:flex; flex-direction:column; gap:16px;}
+.cform .field{display:flex; flex-direction:column; gap:6px; margin:0;}
+.cform label{font-size:12.5px; font-weight:600; letter-spacing:-.01em;}
+.cform input[type="text"],.cform input[type="email"],.cform textarea{
+  font-family:var(--font-ui); font-size:15px; color:var(--ink); background:var(--surface);
+  border:1px solid var(--line-strong); border-radius:var(--r); padding:10px 12px; width:100%;}
+.cform textarea{resize:vertical; min-height:150px; line-height:1.55;}
+.cform input:focus,.cform textarea:focus{outline:none; border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-wash);}
+.cform .hint{font-size:12px; color:var(--ink-3);}
+
+/* Off-screen rather than display:none - a bot that skips hidden fields is
+   exactly the one this is meant to catch. */
+.hp{position:absolute!important; left:-9999px; top:-9999px; width:1px; height:1px; overflow:hidden;}
+
+.rotate{border:1px solid var(--line); border-radius:var(--r); padding:16px; margin:0;
+  display:flex; flex-direction:column; gap:10px; align-items:flex-start; background:var(--surface-2);}
+.rotate legend{font-size:12.5px; font-weight:600; padding:0 6px;}
+.rotate-stage{align-self:center; width:200px; height:200px; display:grid; place-items:center;}
+.rotate-stage img{width:200px; height:200px; transition:transform .12s ease-out;}
+.rotate input[type="range"]{width:100%; accent-color:var(--accent);}
+.rotate output{font-family:var(--font-mono); font-size:12px; color:var(--ink-3);
+  font-variant-numeric:tabular-nums; align-self:center;}
+.cform .actions{margin:0;}
+
+@media (prefers-reduced-motion:reduce){.rotate-stage img{transition:none;}}
 
 /* ============================================================ pagination */
 .pager{margin:26px 0 0;}
