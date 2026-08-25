@@ -27,6 +27,19 @@ die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 cd "$(git rev-parse --show-toplevel)"
 git show-ref --verify --quiet "refs/heads/$SOURCE" || die "branch $SOURCE does not exist"
 
+# Commits made while sitting on the deploy branch are lost the next time this
+# runs, because the tree is derived from $SOURCE and nothing else. Say so rather
+# than silently discarding them.
+CURRENT="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$CURRENT" = "$BRANCH" ]; then
+    if ! git merge-base --is-ancestor "$BRANCH" "$SOURCE" 2>/dev/null; then
+        die "HEAD is on $BRANCH and it has commits $SOURCE does not.
+     They would be discarded. Move them first:
+       git switch $SOURCE && git cherry-pick $(git rev-parse --short "$BRANCH")"
+    fi
+    warn "HEAD is on $BRANCH; commit on $SOURCE instead."
+fi
+
 log "Building $BRANCH from $SOURCE"
 
 TMP_INDEX="$(mktemp "${TMPDIR:-/tmp}/sync-index.XXXXXX")"
