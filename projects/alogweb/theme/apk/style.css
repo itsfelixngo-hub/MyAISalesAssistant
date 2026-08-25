@@ -273,6 +273,22 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .ft-base{display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-top:20px; padding-top:14px;
   border-top:1px solid var(--line); font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3);}
 
+/* ============================================================ admin bar */
+/* WordPress pins #wpadminbar to the top of the viewport for signed-in users and
+   pushes the document down with html{margin-top}. Anything sticky at top:0 then
+   slides underneath it, which is why the header looked wrong only when logged
+   in. The bar is 32px on desktop, 46px on tablets, and below 600px it stops
+   being fixed and scrolls away, so no offset is wanted there. */
+body.admin-bar .site-hd{top:32px;}
+body.admin-bar .idcard{top:112px;}
+
+@media screen and (max-width:782px){
+  body.admin-bar .site-hd{top:46px;}
+}
+@media screen and (max-width:600px){
+  body.admin-bar .site-hd{top:0;}
+}
+
 /* ============================================================ responsive */
 @media (max-width:900px){
   .detail{grid-template-columns:1fr;}
