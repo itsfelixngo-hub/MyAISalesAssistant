@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) { exit; }
 
 const ALOGWEB_META_RATING = '_alogweb_rating';
 const ALOGWEB_META_SIZE   = '_alogweb_size_bytes';
+const ALOGWEB_META_NAME   = '_alogweb_name';
 
 /** "868M" -> 909934592. Unknown or "Varies with device" -> 0, which sorts last. */
 function alogweb_size_to_bytes($size) {
@@ -33,11 +34,16 @@ function alogweb_index_post($post_id) {
 
     $rating = isset($info->ratingValue) ? round((float) $info->ratingValue, 3) : 0.0;
     $bytes  = alogweb_size_to_bytes($info->size ?? '');
+    // The short store name lives inside the serialised blob too, so suggestions
+    // could not match it. "Among Us" is not a substring of the article headline
+    // the AI job wrote over post_title.
+    $name   = alogweb_app_name($post_id, $info);
 
     update_post_meta($post_id, ALOGWEB_META_RATING, $rating);
     update_post_meta($post_id, ALOGWEB_META_SIZE, $bytes);
+    update_post_meta($post_id, ALOGWEB_META_NAME, $name);
 
-    return array('rating' => $rating, 'bytes' => $bytes);
+    return array('rating' => $rating, 'bytes' => $bytes, 'name' => $name);
 }
 
 // Keep it fresh when a post is saved, so the index cannot drift from _info.
@@ -60,15 +66,16 @@ if (defined('WP_CLI') && WP_CLI) {
             'numberposts' => -1,
             'fields'      => 'ids',
         ));
-        $rated = 0; $sized = 0;
+        $rated = 0; $sized = 0; $named = 0;
         foreach ($ids as $id) {
             $r = alogweb_index_post($id);
             if ($r['rating'] > 0) { $rated++; }
             if ($r['bytes'] > 0) { $sized++; }
+            if ($r['name'] !== '') { $named++; }
         }
         WP_CLI::success(sprintf(
-            'Indexed %d posts: %d with a rating, %d with a known size.',
-            count($ids), $rated, $sized
+            'Indexed %d posts: %d with a rating, %d with a known size, %d named.',
+            count($ids), $rated, $sized, $named
         ));
     });
 }
