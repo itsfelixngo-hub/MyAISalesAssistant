@@ -49,12 +49,7 @@ body{
   margin:0; background:var(--ground); color:var(--ink);
   font-family:var(--font-ui); font-size:15px; line-height:1.5;
   -webkit-font-smoothing:antialiased;
-  /* Keeps the footer at the bottom on short pages - an empty search result
-     otherwise leaves it stranded halfway up with blank space beneath. */
-  min-height:100vh; display:flex; flex-direction:column;
 }
-body > main{flex:1 0 auto;}
-body > .site-ft{flex:none;}
 img{max-width:100%; height:auto; display:block;}
 a{color:inherit; text-decoration:none;}
 h1,h2,h3,h4{margin:0; text-wrap:balance; letter-spacing:-.021em; font-weight:600;}
@@ -62,13 +57,13 @@ h1,h2,h3,h4{margin:0; text-wrap:balance; letter-spacing:-.021em; font-weight:600
 .vh{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
 .skip{position:absolute; left:-9999px; top:0; z-index:200; background:var(--accent); color:var(--accent-ink); padding:10px 16px; border-radius:0 0 var(--r) 0;}
 .skip:focus{left:0;}
-/* width:100% is load-bearing. body is a flex column for the sticky footer, and
-   a flex item with auto margins on the cross axis is NOT stretched - the margins
-   absorb the free space instead. Without it .wrap shrinks to fit its content,
-   which collapsed the card grid to a single column. */
 .wrap{width:100%; max-width:var(--wrap); margin:0 auto;
   padding-left:var(--gut); padding-right:var(--gut);}
-main.wrap{padding-top:22px; padding-bottom:44px; display:block;}
+/* Keeps the footer near the bottom on a short page - an empty search result
+   otherwise strands it halfway up. min-height only, deliberately: making body a
+   flex or grid container turns every .wrap into an item whose auto margins stop
+   it stretching, which collapsed the card grid to one column. */
+main.wrap{padding-top:22px; padding-bottom:44px; display:block; min-height:56vh;}
 
 /* ============================================================ header */
 .site-hd{background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50;}
