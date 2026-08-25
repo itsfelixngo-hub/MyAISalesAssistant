@@ -46,6 +46,19 @@ function alogweb_index_post($post_id) {
     return array('rating' => $rating, 'bytes' => $bytes, 'name' => $name);
 }
 
+/** True when at least one post carries $key - i.e. the index has been built. */
+function alogweb_index_has($key) {
+    global $wpdb;
+    $found = wp_cache_get('alogweb_index_has_' . $key);
+    if ($found === false) {
+        $found = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1", $key
+        ));
+        wp_cache_set('alogweb_index_has_' . $key, $found, '', 300);
+    }
+    return (bool) $found;
+}
+
 // Keep it fresh when a post is saved, so the index cannot drift from _info.
 add_action('save_post_post', function ($post_id, $post, $update) {
     if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) { return; }

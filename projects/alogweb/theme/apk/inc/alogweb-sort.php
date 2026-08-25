@@ -31,23 +31,34 @@ add_action('pre_get_posts', function ($query) {
 
     switch (alogweb_current_sort()) {
         case 'rating':
-            // meta_value_num sorts posts without the key as 0, which is what we
-            // want: an unrated app belongs at the bottom of "top rated".
-            $query->set('meta_key', ALOGWEB_META_RATING);
-            $query->set('orderby', array('meta_value_num' => 'DESC', 'date' => 'DESC'));
+            // OR NOT EXISTS turns the join into a LEFT JOIN, so posts that have
+            // no rating still appear - they just sort last. A bare meta_key
+            // would drop them, and on a site whose index has not been built yet
+            // that means an empty page rather than an unsorted one.
+            $query->set('meta_query', array(
+                'relation' => 'OR',
+                'rated'    => array('key' => ALOGWEB_META_RATING, 'compare' => 'EXISTS'),
+                'unrated'  => array('key' => ALOGWEB_META_RATING, 'compare' => 'NOT EXISTS'),
+            ));
+            $query->set('orderby', array('rated' => 'DESC', 'date' => 'DESC'));
             break;
 
         case 'light':
             // 0 means "unknown" or "varies", so those are excluded rather than
-            // presented as the lightest apps on the site.
-            $query->set('meta_query', array(array(
-                'key'     => ALOGWEB_META_SIZE,
-                'value'   => 0,
-                'compare' => '>',
-                'type'    => 'NUMERIC',
-            )));
-            $query->set('orderby', array('meta_value_num' => 'ASC', 'date' => 'DESC'));
-            $query->set('meta_key', ALOGWEB_META_SIZE);
+            // presented as the lightest apps on the site. If nothing at all has
+            // a known size the filter would show an empty page, so fall back to
+            // date instead of pretending there are no light apps.
+            if (alogweb_index_has(ALOGWEB_META_SIZE)) {
+                $query->set('meta_query', array('sized' => array(
+                    'key'     => ALOGWEB_META_SIZE,
+                    'value'   => 0,
+                    'compare' => '>',
+                    'type'    => 'NUMERIC',
+                )));
+                $query->set('orderby', array('sized' => 'ASC', 'date' => 'DESC'));
+            } else {
+                $query->set('orderby', array('date' => 'DESC'));
+            }
             break;
 
         case 'recent':
