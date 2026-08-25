@@ -17,27 +17,19 @@ FORCE=0
 DB_NAME="${MYSQL_DATABASE:-alogweb_wordpress}"
 DB_USER="${MYSQL_USER:-alogweb}"
 
-# Find the dump. Named candidates come first; otherwise any single .sql in the
-# database directory is used. Operators copy whatever the export was called, so
-# insisting on one filename just makes the first deploy fail.
+# Find the dump. No name is privileged: preferring a familiar filename means a
+# stale dump left in the directory silently wins over the one just copied there,
+# and the import looks like it worked. Exactly one, or say so.
 DUMP="${ALOGWEB_DUMP:-}"
-if [ -z "$DUMP" ]; then
-    for candidate in \
-        "$PROJECT_DIR/database/alogweb_current.sql" \
-        "$PROJECT_DIR/database/alogweb_current.sql.gz" \
-        "$PROJECT_DIR/database/db_apk.sql" \
-        "$PROJECT_DIR/database/db_apk.sql.gz"; do
-        [ -f "$candidate" ] && { DUMP="$candidate"; break; }
-    done
-fi
 if [ -z "$DUMP" ]; then
     mapfile -t FOUND < <(find "$PROJECT_DIR/database" -maxdepth 1 -type f \
         \( -name '*.sql' -o -name '*.sql.gz' \) | sort)
     case "${#FOUND[@]}" in
         0) : ;;
         1) DUMP="${FOUND[0]}" ;;
-        *) die "several dumps in $PROJECT_DIR/database - pick one with ALOGWEB_DUMP=<path>:
-     $(printf '%s ' "${FOUND[@]##*/}")" ;;
+        *) die "several dumps in $PROJECT_DIR/database - name the one you want:
+     ALOGWEB_DUMP=$PROJECT_DIR/database/<file> $0 ${1:-}
+     found: $(printf '%s ' "${FOUND[@]##*/}")" ;;
     esac
 fi
 
