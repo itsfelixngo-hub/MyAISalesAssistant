@@ -264,11 +264,27 @@ Chạy tay một vòng mà không cần bật container:
 Page template `theme/apk/template-pages/contact.php`, PHP thuần, không plugin.
 Gán template cho một Page trong wp-admin (hiện là trang **Contact us**, `/contact`).
 
-**Captcha xoay.** Server sinh góc ngẫu nhiên bội số 15°, lưu vào transient 15
-phút, rồi dùng GD xoay ảnh trước khi gửi đi — **góc không bao giờ xuất hiện trong
-HTML**. Người dùng kéo thanh trượt cho mũi tên thẳng đứng. ExchangeHub xoay bằng
-CSS transform nên bot đọc được đáp án ngay trong trang; đây là chỗ khác biệt có
-chủ đích.
+**Captcha xoay hình trong hình.** Server vẽ một hoa văn theo seed lấy từ token,
+rồi phục vụ **hai lớp**:
+
+- `?alogweb_captcha=<token>&part=bg` — hoa văn với phần đĩa giữa bị khoét, tô
+  phẳng. Không để lộ hoa văn gốc bên dưới, nếu không đáp án nhìn xuyên qua được.
+- `&part=disc` — đúng cái đĩa đó, cắt từ cùng hoa văn và **đã xoay sẵn** một góc
+  ngẫu nhiên bội số 15°, nền trong suốt.
+
+Người dùng xoay đĩa cho hoa văn nối liền với xung quanh. Manh mối là sự liền
+mạch, nên bot phải phân tích ảnh mới giải được — khác hẳn việc đọc một con số.
+
+Góc **không bao giờ xuất hiện trong HTML**; nó nằm trong transient 15 phút phía
+server. ExchangeHub xoay bằng CSS transform nên đáp án nằm ngay trong trang.
+
+Mỗi token sinh một hoa văn khác nhau, nên không precompute được. Đĩa được lấy mẫu
+thẳng từ hoa văn chứ không cắt rồi `imagerotate`, nhờ vậy xoay đúng thì đường ghép
+**liền thật sự**: đo được sai lệch 1.4–3.3 trên mỗi kênh màu, so với ~310 khi lệch
+90°.
+
+Một ảnh duy nhất thì không đặt được câu đố này — xoay cả tấm ảnh thì đường ghép
+vẫn sai y như lúc đầu.
 
 Ngoài captcha còn bốn lớp: honeypot, thời gian tối thiểu 3 giây, rate limit 60
 giây theo IP đã băm, và nonce của WordPress.

@@ -50,6 +50,7 @@ function alogweb_new_challenge() {
     set_transient(ALOGWEB_CAPTCHA_PREFIX . $token, array(
         'rotation' => $rotation,
         'answer'   => (360 - $rotation) % 360,
+        'seed'     => random_int(1, PHP_INT_MAX),
         'issued'   => time(),
     ), ALOGWEB_CAPTCHA_TTL);
 
@@ -70,52 +71,138 @@ function alogweb_consume_challenge($token) {
 
 /* --------------------------------------------------------------- captcha image */
 
-/** The figure to rotate: a circular badge with an arrow, drawn with GD. */
-function alogweb_captcha_image($rotation, $size = 200) {
-    $scale = 3;                       // draw large, downsample for smooth edges
-    $big   = $size * $scale;
-    $im    = imagecreatetruecolor($big, $big);
+/**
+ * The background pattern. Drawn from a seed so one token always yields the same
+ * picture, and every token yields a different one - a bot cannot learn a fixed
+ * image. Deliberately busy and directional: the puzzle is whether the inner disc
+ * continues the pattern around it, so the pattern has to be readable at the seam.
+ */
+function alogweb_captcha_pattern($size, $seed) {
+    mt_srand($seed);
 
+    $im = imagecreatetruecolor($size, $size);
     imagealphablending($im, true);
-    imagesavealpha($im, true);
-    imagefill($im, 0, 0, imagecolorallocatealpha($im, 0, 0, 0, 127));
 
-    $disc  = imagecolorallocate($im, 227, 242, 239);
-    $ink   = imagecolorallocate($im, 0, 128, 111);
-    $mark  = imagecolorallocate($im, 168, 114, 15);
-    $c     = $big / 2;
+    $bg = imagecolorallocate($im, 236, 244, 242);
+    imagefilledrectangle($im, 0, 0, $size, $size, $bg);
 
-    imagefilledellipse($im, $c, $c, $big * 0.94, $big * 0.94, $disc);
-
-    // Arrow: head, then stem. Its direction is the whole point of the puzzle.
-    $head = array(
-        $c, $big * 0.16,
-        $big * 0.74, $big * 0.50,
-        $big * 0.60, $big * 0.50,
-        $big * 0.60, $big * 0.84,
-        $big * 0.40, $big * 0.84,
-        $big * 0.40, $big * 0.50,
-        $big * 0.26, $big * 0.50,
+    $palette = array(
+        imagecolorallocate($im, 0, 128, 111),
+        imagecolorallocate($im, 1, 168, 147),
+        imagecolorallocate($im, 168, 114, 15),
+        imagecolorallocate($im, 15, 24, 22),
     );
-    imagefilledpolygon($im, array_map('intval', $head), $ink);
 
-    // An off-centre mark so a symmetric near-miss still reads as wrong.
-    imagefilledellipse($im, $c, (int) ($big * 0.72), (int) ($big * 0.09), (int) ($big * 0.09), $mark);
+    // Diagonal bands give the seam a strong, obvious direction.
+    $band = max(6, (int) ($size / 14));
+    for ($offset = -$size; $offset < $size * 2; $offset += $band * 2) {
+        $colour = $palette[($offset / ($band * 2) + 100) % count($palette)];
+        imagefilledpolygon($im, array(
+            $offset, 0,
+            $offset + $band, 0,
+            $offset + $band - $size, $size,
+            $offset - $size, $size,
+        ), $colour);
+    }
 
-    $rotated = imagerotate($im, 360 - $rotation, imagecolorallocatealpha($im, 0, 0, 0, 127));
-    imagealphablending($rotated, false);
-    imagesavealpha($rotated, true);
-    imagedestroy($im);
+    // Discs and bars break the bands up, so a half-band slip is still visible.
+    for ($i = 0; $i < 7; $i++) {
+        $colour = $palette[mt_rand(0, count($palette) - 1)];
+        $r = (int) ($size * (mt_rand(9, 20) / 100));
+        imagefilledellipse($im, mt_rand(0, $size), mt_rand(0, $size), $r, $r, $colour);
+    }
+    for ($i = 0; $i < 3; $i++) {
+        $x = mt_rand(0, $size); $y = mt_rand(0, $size);
+        $w = (int) ($size * 0.30); $h = max(4, (int) ($size * 0.045));
+        imagefilledrectangle($im, $x, $y, $x + $w, $y + $h,
+            $palette[mt_rand(0, count($palette) - 1)]);
+    }
+
+    return $im;
+}
+
+/** Geometry shared by both halves of the puzzle. */
+function alogweb_captcha_geometry($size) {
+    return array('size' => $size, 'centre' => $size / 2, 'radius' => $size * 0.34);
+}
+
+/**
+ * The static half: the pattern with the disc punched out.
+ *
+ * The hole is filled flat rather than left showing the pattern underneath -
+ * otherwise the correct alignment is visible through the piece that is supposed
+ * to be the puzzle.
+ */
+function alogweb_captcha_background($seed, $size = 240) {
+    $scale = 2;
+    $big   = $size * $scale;
+    $im    = alogweb_captcha_pattern($big, $seed);
+    $g     = alogweb_captcha_geometry($big);
+
+    $hole = imagecolorallocate($im, 214, 226, 223);
+    imagefilledellipse($im, (int) $g['centre'], (int) $g['centre'],
+        (int) ($g['radius'] * 2), (int) ($g['radius'] * 2), $hole);
+
+    imagesetthickness($im, max(2, (int) ($big * 0.010)));
+    imageellipse($im, (int) $g['centre'], (int) $g['centre'],
+        (int) ($g['radius'] * 2), (int) ($g['radius'] * 2),
+        imagecolorallocate($im, 255, 255, 255));
 
     $out = imagecreatetruecolor($size, $size);
+    imagecopyresampled($out, $im, 0, 0, 0, 0, $size, $size, $big, $big);
+    imagedestroy($im);
+    return $out;
+}
+
+/**
+ * The moving half: the disc cut from the same pattern, already turned by
+ * $rotation, transparent everywhere else.
+ *
+ * The visitor turns it a further `answer` degrees, so the pattern ends up back
+ * at zero and the seam disappears. Sampling the source directly - rather than
+ * cropping then calling imagerotate - keeps the disc edge exact, so a solved
+ * puzzle really is seamless instead of nearly seamless.
+ */
+function alogweb_captcha_disc($rotation, $seed, $size = 240) {
+    $scale = 2;
+    $big   = $size * $scale;
+    $src   = alogweb_captcha_pattern($big, $seed);
+    $g     = alogweb_captcha_geometry($big);
+
+    $out = imagecreatetruecolor($big, $big);
     imagealphablending($out, false);
     imagesavealpha($out, true);
-    imagefill($out, 0, 0, imagecolorallocatealpha($out, 0, 0, 0, 127));
-    $rw = imagesx($rotated);
-    imagecopyresampled($out, $rotated, 0, 0, 0, 0, $size, $size, $rw, $rw);
-    imagedestroy($rotated);
+    imagefilledrectangle($out, 0, 0, $big, $big, imagecolorallocatealpha($out, 0, 0, 0, 127));
 
-    return $out;
+    $c   = $g['centre'];
+    $r   = $g['radius'];
+    $r2  = $r * $r;
+    $rad = deg2rad($rotation);
+    $cos = cos($rad);
+    $sin = sin($rad);
+
+    $lo = (int) floor($c - $r);
+    $hi = (int) ceil($c + $r);
+    for ($y = $lo; $y <= $hi; $y++) {
+        for ($x = $lo; $x <= $hi; $x++) {
+            $dx = $x - $c;
+            $dy = $y - $c;
+            if ($dx * $dx + $dy * $dy > $r2) { continue; }
+            $sx = (int) round($c + $dx * $cos + $dy * $sin);
+            $sy = (int) round($c - $dx * $sin + $dy * $cos);
+            if ($sx < 0 || $sy < 0 || $sx >= $big || $sy >= $big) { continue; }
+            imagesetpixel($out, $x, $y, imagecolorat($src, $sx, $sy));
+        }
+    }
+    imagedestroy($src);
+
+    $small = imagecreatetruecolor($size, $size);
+    imagealphablending($small, false);
+    imagesavealpha($small, true);
+    imagefilledrectangle($small, 0, 0, $size, $size, imagecolorallocatealpha($small, 0, 0, 0, 127));
+    imagecopyresampled($small, $out, 0, 0, 0, 0, $size, $size, $big, $big);
+    imagedestroy($out);
+    return $small;
 }
 
 /** Serves the rotated image. Never cached: one token, one image, one use. */
@@ -131,7 +218,11 @@ add_action('init', function () {
 
     if (!$challenge) { status_header(404); exit; }
 
-    $image = alogweb_captcha_image((int) $challenge['rotation']);
+    $part  = isset($_GET['part']) ? sanitize_key(wp_unslash($_GET['part'])) : 'bg';
+    $image = ($part === 'disc')
+        ? alogweb_captcha_disc((int) $challenge['rotation'], (int) $challenge['seed'])
+        : alogweb_captcha_background((int) $challenge['seed']);
+
     imagepng($image);
     imagedestroy($image);
     exit;
