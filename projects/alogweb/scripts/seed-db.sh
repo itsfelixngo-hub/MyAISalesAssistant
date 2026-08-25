@@ -17,22 +17,6 @@ FORCE=0
 DB_NAME="${MYSQL_DATABASE:-alogweb_wordpress}"
 DB_USER="${MYSQL_USER:-alogweb}"
 
-# Find the dump. No name is privileged: preferring a familiar filename means a
-# stale dump left in the directory silently wins over the one just copied there,
-# and the import looks like it worked. Exactly one, or say so.
-DUMP="${ALOGWEB_DUMP:-}"
-if [ -z "$DUMP" ]; then
-    mapfile -t FOUND < <(find "$PROJECT_DIR/database" -maxdepth 1 -type f \
-        \( -name '*.sql' -o -name '*.sql.gz' \) | sort)
-    case "${#FOUND[@]}" in
-        0) : ;;
-        1) DUMP="${FOUND[0]}" ;;
-        *) die "several dumps in $PROJECT_DIR/database - name the one you want:
-     ALOGWEB_DUMP=$PROJECT_DIR/database/<file> $0 ${1:-}
-     found: $(printf '%s ' "${FOUND[@]##*/}")" ;;
-    esac
-fi
-
 wait_healthy alogweb-mysql 90
 
 if [ "$FORCE" -eq 0 ]; then
@@ -50,6 +34,25 @@ if [ "$FORCE" -eq 1 ]; then
 elif database_seeded; then
     log "Database '$DB_NAME' already contains WordPress tables - skipping import"
     exit 0
+fi
+
+# Look for the dump only once it is actually needed. Doing it earlier meant
+# an already-seeded site refused to deploy just because two dump files were
+# sitting in the directory.
+# No name is privileged: preferring a familiar filename means a
+# stale dump left in the directory silently wins over the one just copied there,
+# and the import looks like it worked. Exactly one, or say so.
+DUMP="${ALOGWEB_DUMP:-}"
+if [ -z "$DUMP" ]; then
+    mapfile -t FOUND < <(find "$PROJECT_DIR/database" -maxdepth 1 -type f \
+        \( -name '*.sql' -o -name '*.sql.gz' \) | sort)
+    case "${#FOUND[@]}" in
+        0) : ;;
+        1) DUMP="${FOUND[0]}" ;;
+        *) die "several dumps in $PROJECT_DIR/database - name the one you want:
+     ALOGWEB_DUMP=$PROJECT_DIR/database/<file> $0 ${1:-}
+     found: $(printf '%s ' "${FOUND[@]##*/}")" ;;
+    esac
 fi
 
 [ -n "$DUMP" ] && [ -f "$DUMP" ] || die "no SQL dump found. Copy one into $PROJECT_DIR/database/ or set ALOGWEB_DUMP"

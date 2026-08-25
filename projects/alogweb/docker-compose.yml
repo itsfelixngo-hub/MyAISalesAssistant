@@ -7,8 +7,13 @@
 #
 # Environment comes from ./.env (see .env.production.example).
 
-# Project name is deliberately namespaced: a bare "alogweb" collides with any
-# other compose project living in a directory called alogweb.
+# Namespaced on purpose: a bare "alogweb" collides with any other compose
+# project living in a directory of that name.
+#
+# Override with COMPOSE_PROJECT_NAME in .env to run a second copy of this stack
+# from another checkout. Without that, compose treats both as the same project
+# and `up -d` in one silently replaces the containers of the other, however
+# different their container names are.
 name: maa-alogweb
 
 x-wordpress-env: &wordpress-env
@@ -92,7 +97,11 @@ services:
       - alogweb_net
 
   alogweb-wordpress:
-    image: wordpress:6.7.2-php8.1-fpm
+    # Pinned, and pinned to the version that produced the seed dump. A fresh
+    # container on an older tag stamps its own lower db_version over the one in
+    # the dump - core update-db reports it as an upgrade while it is a
+    # downgrade, and the site then runs newer data on older code.
+    image: wordpress:${ALOGWEB_WP_IMAGE:-7.1-php8.2-fpm}
     container_name: ${CONTAINER_PREFIX:-maa_alogweb}_wordpress
     restart: unless-stopped
     depends_on:
