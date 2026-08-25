@@ -29,7 +29,7 @@ while (have_posts()) : the_post();
 				<h1><?php echo esc_html($app['name']); ?></h1>
 				<?php if ($app['dev']) : ?><div class="dev"><?php echo esc_html($app['dev']); ?></div><?php endif; ?>
 				<?php if ($app['rating'] > 0) : ?>
-					<span class="rating"><?php echo esc_html(number_format($app['rating'], 2)); ?><span class="meter"><i style="width:<?php echo esc_attr($app['rating_pct']); ?>%"></i></span></span>
+					<?php echo alogweb_rating_html($app, 14); ?>
 				<?php endif; ?>
 			</div>
 		</div>
