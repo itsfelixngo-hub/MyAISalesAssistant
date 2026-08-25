@@ -10,6 +10,7 @@ include 'inc/alogweb-data.php';
 include 'inc/alogweb-index.php';
 include 'inc/alogweb-sort.php';
 include 'inc/alogweb-search.php';
+include 'inc/alogweb-migration.php';
 include 'inc/alogweb-contact.php';
 // include 'inc/class_yoast_seo.php';
 /*
