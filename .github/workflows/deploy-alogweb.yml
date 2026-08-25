@@ -2,7 +2,13 @@
 # To add another project, copy this file and change PROJECT, the runner label,
 # the paths filter, and the ALOGWEB_* variable names.
 #
-# Configure in the repository under Settings → Secrets and variables → Actions.
+# Configure under Settings → Environments → alogweb-production.
+#
+# An environment rather than repository-wide settings, for two reasons. This
+# repository holds more than one project, and repository secrets are readable by
+# every workflow in it. And workflow_dispatch can be run from any ref - the
+# branches filter below only constrains push - so without an environment branch
+# rule, anyone can dispatch a production deploy from main.
 #
 #   Variables (not secret, visible in logs)
 #     ALOGWEB_APP_DIR        deploy root on the VPS (default /home/deploy/apps/alogweb)
@@ -47,6 +53,12 @@ jobs:
     name: Deploy to VPS
     runs-on: [self-hosted, linux, alogweb]
     timeout-minutes: 30
+
+    # Scopes the secrets to this job and lets a branch rule enforce that
+    # production is only ever deployed from deploy/alogweb.
+    environment:
+      name: alogweb-production
+      url: ${{ vars.ALOGWEB_SITE_URL }}
 
     steps:
       - name: Checkout
