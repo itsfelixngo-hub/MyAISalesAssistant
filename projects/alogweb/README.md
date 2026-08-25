@@ -161,7 +161,13 @@ Giai đoạn 1 (chưa có DNS): `HTTP_PORT=8093`, `SITE_URL=http://<IP-VPS>:8093
 Mở port trên firewall, truy cập thẳng bằng IP.
 
 Giai đoạn 2 (đã trỏ DNS): sửa `.env` thành `HTTP_PORT=80` và
-`SITE_URL=https://apk.alogweb.com`, rồi chạy lại deploy. Không cần sửa
+`SITE_URL=https://alogweb.com`, rồi chạy lại deploy.
+
+> **Dùng apex, không dùng `apk.alogweb.com`.** Theme dựng host ảnh bằng
+> `'static.' + host(SITE_URL)`, và chứng chỉ hiện tại là wildcard
+> `*.alogweb.com`. Wildcard chỉ khớp **một cấp**: nó phủ `static.alogweb.com`
+> nhưng không phủ `static.apk.alogweb.com`. Đặt sai là toàn bộ ảnh screenshot
+> lỗi TLS. Apex cũng chính là nơi site thật đang canonical về. Không cần sửa
 `nginx/default.conf` (`server_name _` nhận mọi host) và không cần sửa database:
 `WP_HOME`/`WP_SITEURL` được ép trong `wp-config.php` nên luôn thắng giá trị lưu
 trong dump.
