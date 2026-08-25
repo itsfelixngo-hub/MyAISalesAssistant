@@ -54,9 +54,18 @@ $found = (int) $GLOBALS['wp_query']->found_posts;
 	</ol>
 	<?php alogweb_pagination(); ?>
 <?php else : ?>
-	<p class="empty">
-		<?php printf(esc_html__('Nothing matched “%s”. Try a shorter keyword.', 'alogweb'), esc_html($term)); ?>
-	</p>
+	<div class="empty">
+		<p><?php printf(esc_html__('Nothing matched “%s”. Try a shorter keyword.', 'alogweb'), esc_html($term)); ?></p>
+		<?php $google = alogweb_google_site_search_url($term); ?>
+		<?php if ($google) : ?>
+			<p class="empty-alt">
+				<a href="<?php echo esc_url($google); ?>" target="_blank" rel="nofollow noopener">
+					<?php esc_html_e('Search Google within this site', 'alogweb'); ?>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 14v5H5V6h5"/></svg>
+				</a>
+			</p>
+		<?php endif; ?>
+	</div>
 <?php endif; ?>
 
 <?php get_footer();

@@ -124,3 +124,25 @@ function alogweb_result_url_line($app) {
     $parts[] = trim(wp_parse_url($app['permalink'], PHP_URL_PATH), '/');
     return implode(' › ', array_map('esc_html', $parts));
 }
+
+/**
+ * A "search Google within this site" URL, or '' when that would be nonsense.
+ *
+ * Worth offering only where internal search comes up empty and Google might
+ * not: its index can still hold pages this site has since rewritten, and it
+ * matches words that WordPress's own search does not.
+ *
+ * Returns nothing on a hostname Google cannot crawl - localhost, a bare name,
+ * an IP - because a site: query against those returns nothing, and a link that
+ * is always empty is worse than no link.
+ */
+function alogweb_google_site_search_url($term) {
+    $host = wp_parse_url(home_url(), PHP_URL_HOST);
+    $term = trim((string) $term);
+
+    if (!$host || $term === '') { return ''; }
+    if (strpos($host, '.') === false) { return ''; }
+    if (filter_var($host, FILTER_VALIDATE_IP)) { return ''; }
+
+    return 'https://www.google.com/search?q=' . rawurlencode('site:' . $host . ' ' . $term);
+}

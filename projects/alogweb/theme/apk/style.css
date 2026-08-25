@@ -135,7 +135,12 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block; min-height:56vh;
 .empty{font-family:var(--font-read); font-size:16.5px; color:var(--ink-2); line-height:1.6;
   border:1px solid var(--line); border-radius:var(--r); background:var(--surface);
   padding:28px; margin:0; text-align:center;}
+.empty p{margin:0;}
 .empty a{color:var(--accent);}
+.empty-alt{margin-top:14px!important; font-family:var(--font-ui); font-size:14px;}
+.empty-alt a{display:inline-flex; align-items:center; gap:6px;
+  border:1px solid var(--line-strong); border-radius:var(--r); padding:8px 14px; font-weight:500;}
+.empty-alt a:hover{background:var(--surface-2);}
 mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2px;}
 
 /* ============================================================ grid + card */
