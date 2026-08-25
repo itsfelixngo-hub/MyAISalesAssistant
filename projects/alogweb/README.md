@@ -370,6 +370,21 @@ Trước đây `_info`, `_feature`, `_screenshots` được đọc trực tiếp
 cách khác nhau — đó là lý do `single.php` gọi `sizeof()` lên một chuỗi và fatal
 trên PHP 8. Không thêm chỗ nào đọc meta trực tiếp nữa.
 
+### Tìm kiếm
+
+Trang kết quả trình bày kiểu công cụ tìm kiếm: dòng URL, tiêu đề, rồi trích đoạn
+cho thấy **vì sao** trang khớp, từ khóa được tô. Lưới thẻ hợp để duyệt danh mục
+nơi mọi mục đều là ứng viên; với một truy vấn thì người đọc cần thấy ngữ cảnh
+trước khi bấm.
+
+Gợi ý gõ tới đâu hiện tới đó, lấy từ `GET /wp-json/alogweb/v1/suggest?q=`.
+Khớp cả `post_title` lẫn `_alogweb_name` vì hai thứ này thường không liên quan —
+job AI đã viết đè `post_title` thành tiêu đề bài, nên "Among Us" không nằm trong
+tiêu đề của chính bài Among Us. Khớp tiền tố được xếp trước.
+
+Dropdown là combobox đúng chuẩn ARIA: phím lên/xuống, Enter mở mục đang chọn,
+Escape đóng. Không có JavaScript thì form vẫn submit bình thường.
+
 ### Sắp xếp kết quả
 
 `ratingValue` và `size` nằm trong object serialize `_info` nên MySQL không

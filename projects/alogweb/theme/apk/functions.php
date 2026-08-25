@@ -9,6 +9,7 @@ include 'inc/class_games.php';
 include 'inc/alogweb-data.php';
 include 'inc/alogweb-index.php';
 include 'inc/alogweb-sort.php';
+include 'inc/alogweb-search.php';
 include 'inc/alogweb-contact.php';
 // include 'inc/class_yoast_seo.php';
 /*
@@ -99,6 +100,7 @@ function alogweb_theme_setup() {
 		wp_enqueue_style( 'alogweb-fonts', 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap', array(), null );
 		wp_enqueue_style( 'alogweb-style', get_stylesheet_uri(), array( 'alogweb-fonts' ), alogweb_asset_version( '/style.css' ) );
 		wp_enqueue_script( 'alogweb-stars', get_theme_file_uri( '/assets/js/rating-stars.js' ), array(), alogweb_asset_version( '/assets/js/rating-stars.js' ), true );
+		wp_enqueue_script( 'alogweb-suggest', get_theme_file_uri( '/assets/js/search-suggest.js' ), array(), alogweb_asset_version( '/assets/js/search-suggest.js' ), true );
 		if ( is_page_template( 'template-pages/contact.php' ) ) {
 			wp_enqueue_script( 'alogweb-rotate', get_theme_file_uri( '/assets/js/contact-rotate.js' ), array(), alogweb_asset_version( '/assets/js/contact-rotate.js' ), true );
 		}
