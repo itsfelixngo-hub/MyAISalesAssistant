@@ -56,6 +56,23 @@ function alogweb_app($post_id = null) {
 
     $rating = isset($info->ratingValue) ? round((float) $info->ratingValue, 2) : 0.0;
 
+    // The importer scraped some fields off the wrong part of the Play Store
+    // page: one post has the whole content-rating block, markup and all, sitting
+    // in `android`. Strip tags everywhere, then drop values that cannot be what
+    // the field claims to be.
+    $clean = static function ($value) {
+        return trim(preg_replace('/\s+/', ' ', strip_tags((string) $value)));
+    };
+    $plausible = static function ($value) {
+        // A version requirement starts with a digit, or says it varies.
+        return $value !== '' && (ctype_digit(substr($value, 0, 1)) || stripos($value, 'varies') !== false);
+    };
+
+    $size    = $clean($info->size ?? '');
+    $version = $clean($info->version ?? '');
+    $android = $clean($info->android ?? '');
+    if (!$plausible($android)) { $android = ''; }
+
     $terms = get_the_category($post_id);
     $term  = (is_array($terms) && !empty($terms)) ? $terms[0] : null;
 
@@ -64,12 +81,12 @@ function alogweb_app($post_id = null) {
         'name'        => alogweb_app_name($post_id, $info),
         'headline'    => get_the_title($post_id),
         'permalink'   => get_permalink($post_id),
-        'dev'         => isset($info->dev) ? (string) $info->dev : '',
-        'size'        => isset($info->size) ? (string) $info->size : '',
-        'version'     => isset($info->version) ? (string) $info->version : '',
-        'android'     => isset($info->android) ? (string) $info->android : '',
-        'published'   => isset($info->publish) ? (string) $info->publish : '',
-        'store_url'   => isset($info->store_url) ? (string) $info->store_url : '',
+        'dev'         => $clean($info->dev ?? ''),
+        'size'        => $size,
+        'version'     => $version,
+        'android'     => $android,
+        'published'   => $clean($info->publish ?? ''),
+        'store_url'   => isset($info->store_url) ? esc_url_raw((string) $info->store_url) : '',
         'rating'      => $rating,
         'rating_pct'  => $rating > 0 ? min(100, ($rating / 5) * 100) : 0,
         'icon'        => is_string($icon) ? $icon : '',
@@ -80,19 +97,32 @@ function alogweb_app($post_id = null) {
     );
 }
 
-/** The monospace metadata line: "868M · v1.6.0 · 5.0+". Skips empty values. */
+/**
+ * The compact metadata line: "868M · v1.6.0 · 5.0+".
+ *
+ * Only values that read well at 11px survive. "Varies with device" is honest
+ * information and stays in the manifest table on the detail page, but in a card
+ * it is three times the width of a real answer - and prefixing it turned into
+ * "vVaries with device".
+ */
 function alogweb_spec_parts($app) {
     $parts = array();
-    if (!empty($app['size']) && stripos($app['size'], 'varies') === false) { $parts[] = $app['size']; }
-    if (!empty($app['version'])) {
-        $version = $app['version'];
+
+    $size = $app['size'];
+    if ($size !== '' && stripos($size, 'varies') === false) { $parts[] = $size; }
+
+    $version = $app['version'];
+    if ($version !== '' && stripos($version, 'varies') === false && ctype_digit(substr($version, 0, 1))) {
         // Importer versions like 1.6.0_2961400_3070488 are unreadable in a card.
         if (strlen($version) > 12) { $version = substr($version, 0, strcspn($version, '_')); }
         $parts[] = 'v' . $version;
     }
-    if (!empty($app['android'])) {
-        $parts[] = trim(str_replace(array('and up', 'trở lên'), '+', $app['android']));
+
+    $android = $app['android'];
+    if ($android !== '' && stripos($android, 'varies') === false) {
+        $parts[] = preg_replace('/\s*and up$/i', '+', $android);
     }
+
     return $parts;
 }
 
