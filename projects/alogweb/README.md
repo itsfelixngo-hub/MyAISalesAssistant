@@ -385,6 +385,25 @@ tiêu đề của chính bài Among Us. Khớp tiền tố được xếp trư�
 Dropdown là combobox đúng chuẩn ARIA: phím lên/xuống, Enter mở mục đang chọn,
 Escape đóng. Không có JavaScript thì form vẫn submit bình thường.
 
+### Khi không có kết quả
+
+Trang rỗng có thêm link *Search Google within this site* trỏ tới
+`google.com/search?q=site:<domain>+<từ khóa>`. Chỉ một thẻ `<a>`, không phụ
+thuộc dịch vụ nào, không đụng điều khoản của Google.
+
+Lý do đáng có: index của Google vẫn giữ nội dung **trước** khi job AI viết đè,
+và nó khớp được những từ mà tìm kiếm của WordPress bỏ sót.
+
+Link tự ẩn khi host không crawl được — `localhost`, tên không có dấu chấm, hoặc
+địa chỉ IP — vì `site:localhost` luôn trả về rỗng, và một link luôn rỗng thì tệ
+hơn là không có link.
+
+> Nhúng kết quả Google vào iframe thì **không làm được**: `google.com/search`
+> trả `x-frame-options: SAMEORIGIN`, trình duyệt từ chối render. Google
+> Programmable Search Engine là đường hợp lệ, nhưng với 85 bài thì nó thua tìm
+> kiếm nội bộ ở mọi mặt — độ trễ, quảng cáo bản free, quota, và phải chờ Google
+> crawl lại mới thấy nội dung mới.
+
 ### Sắp xếp kết quả
 
 `ratingValue` và `size` nằm trong object serialize `_info` nên MySQL không
