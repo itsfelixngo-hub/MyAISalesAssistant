@@ -21,6 +21,36 @@
 	<link rel="apple-touch-icon" sizes="180x180" href="<?php echo esc_url($alogweb_icons . '/icon-180.png'); ?>">
 	<meta name="theme-color" content="#00806F">
 
+	<?php
+	/*
+	 * Link previews. A post's own screenshot is already 1440x620, which is close
+	 * enough to the 1200x630 these cards want; the wordmark card stands in
+	 * everywhere else. Without any of this a shared link shows a bare URL.
+	 */
+	$alogweb_og_title = wp_get_document_title();
+	$alogweb_og_url   = is_singular() ? get_permalink() : home_url(add_query_arg(array()));
+	$alogweb_og_image = $alogweb_icons . '/og-image.jpg';
+	$alogweb_og_desc  = get_bloginfo('description');
+
+	if (is_singular('post')) {
+		$alogweb_app = alogweb_app(get_the_ID());
+		if (!empty($alogweb_app['screenshots'])) {
+			$alogweb_og_image = screenshot_rewrite_lh3_in_url($alogweb_app['screenshots'][0]);
+		}
+		$meta_desc = get_post_meta(get_the_ID(), '_aipcw_meta_description', true);
+		$alogweb_og_desc = $meta_desc ? $meta_desc : wp_trim_words(wp_strip_all_tags(get_the_excerpt()), 30);
+	}
+	?>
+	<meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
+	<meta property="og:type" content="<?php echo is_singular('post') ? 'article' : 'website'; ?>">
+	<meta property="og:title" content="<?php echo esc_attr($alogweb_og_title); ?>">
+	<meta property="og:url" content="<?php echo esc_url($alogweb_og_url); ?>">
+	<meta property="og:image" content="<?php echo esc_url($alogweb_og_image); ?>">
+	<?php if ($alogweb_og_desc) : ?>
+		<meta property="og:description" content="<?php echo esc_attr($alogweb_og_desc); ?>">
+	<?php endif; ?>
+	<meta name="twitter:card" content="summary_large_image">
+
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<?php wp_head(); ?>
