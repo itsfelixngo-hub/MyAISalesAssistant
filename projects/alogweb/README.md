@@ -89,11 +89,26 @@ scp projects/alogweb/database/alogweb_current.sql \
   deploy@VPS:/home/deploy/apps/alogweb/projects/alogweb/database/
 ```
 
-`seed-db.sh` tự tìm dump trong `database/`: ưu tiên `alogweb_current.sql` rồi
-`db_apk.sql`, nếu không có thì lấy file `.sql` duy nhất trong thư mục. Có nhiều
-file thì nó dừng và bắt chỉ rõ bằng `ALOGWEB_DUMP=<đường-dẫn>`.
+`seed-db.sh` lấy file `.sql`/`.sql.gz` **duy nhất** trong `database/`. Có nhiều
+file thì nó dừng và liệt kê ra, bắt chỉ rõ bằng `ALOGWEB_DUMP=<đường-dẫn>` —
+không ưu tiên tên nào cả, vì một dump cũ bỏ quên trong thư mục mà được chọn
+thầm lặng thì lần import trông vẫn như thành công.
 
 Chỉ import khi database còn rỗng. Các lần deploy sau không đụng vào dữ liệu.
+
+### Mang dữ liệu sang máy chủ khác
+
+```bash
+./scripts/export-db.sh          # bỏ transient, giữ revision và backup AI
+./scripts/export-db.sh --slim   # bỏ luôn revision
+```
+
+Dump ra `backups/`, quyền 0600. **Nó chứa credential thật** — Gemini API key
+trong `aipcw_settings` và hash mật khẩu admin. Copy bằng `scp`, xoá ở cả hai máy
+sau khi đã kiểm tra xong.
+
+Giữ `_aipcw_backup_history` (85 bài) là có chủ đích: đó là bản nội dung **trước**
+khi job AI viết đè, và là đường lui duy nhất nếu bản mới đọc kém hơn.
 
 > Dùng `db_apk.sql` (prefix `apk_`) — đây là dump của site thật, có đủ post meta
 > `_screenshots`, `_info`, `_feature`, `_store_game` mà theme `apk` cần.
