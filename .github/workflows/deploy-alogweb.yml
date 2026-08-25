@@ -1,12 +1,28 @@
 # Per-project deploy. One workflow + one self-hosted runner label per project.
-# To add another project, copy this file and change PROJECT / APP_DIR / paths /
-# the runner label.
+# To add another project, copy this file and change PROJECT, the runner label,
+# the paths filter, and the ALOGWEB_* variable names.
+#
+# Configure in the repository under Settings → Secrets and variables → Actions.
+#
+#   Variables (not secret, visible in logs)
+#     ALOGWEB_APP_DIR        deploy root on the VPS (default /home/deploy/apps/alogweb)
+#     ALOGWEB_SITE_URL       required, e.g. http://203.0.113.10:8093 then https://alogweb.com
+#     ALOGWEB_HTTP_PORT      default 8093; 80 once DNS points here
+#     ALOGWEB_TABLE_PREFIX   default apk_ - must match the dump
+#     ALOGWEB_CONTACT_*      contact form addresses and SMTP host/port
+#
+#   Secrets (masked in logs)
+#     ALOGWEB_MYSQL_PASSWORD        required
+#     ALOGWEB_MYSQL_ROOT_PASSWORD   required
+#     ALOGWEB_SMTP_USER             optional
+#     ALOGWEB_SMTP_PASSWORD         optional
+#
+# Nothing is stored on the VPS by hand: .env is rewritten from these on every
+# run, so the repository settings are the single source of truth.
 name: Deploy alogweb
 
 on:
   push:
-    # Deploys run from a dedicated branch, not main: main is the working copy,
-    # and merging into deploy/alogweb is the deliberate act that ships.
     branches: [deploy/alogweb]
     paths:
       - 'projects/alogweb/**'
@@ -25,7 +41,6 @@ concurrency:
 
 env:
   PROJECT: alogweb
-  APP_DIR: /home/deploy/apps/alogweb
 
 jobs:
   deploy:
@@ -37,6 +52,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve deploy root
+        env:
+          APP_DIR_INPUT: ${{ vars.ALOGWEB_APP_DIR }}
+        run: |
+          set -euo pipefail
+          APP_DIR="${APP_DIR_INPUT:-/home/deploy/apps/alogweb}"
+          case "$APP_DIR" in
+            /*) ;;
+            *) echo "ALOGWEB_APP_DIR must be an absolute path, got: $APP_DIR"; exit 1 ;;
+          esac
+          echo "APP_DIR=$APP_DIR"
+          echo "APP_DIR=$APP_DIR" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$APP_DIR/projects/$PROJECT" >> "$GITHUB_ENV"
+
       - name: Preflight
         run: |
           set -euo pipefail
@@ -46,48 +75,81 @@ jobs:
           docker compose version >/dev/null
           docker info >/dev/null
 
-          test -d "$APP_DIR" || { echo "missing $APP_DIR - create it once on the VPS"; exit 1; }
+          mkdir -p "$PROJECT_DIR/database"
           test -w "$APP_DIR"
-
-          env_file="$APP_DIR/projects/$PROJECT/.env"
-          if [ ! -f "$env_file" ]; then
-            echo "missing $env_file"
-            echo "Create it once on the VPS from projects/$PROJECT/.env.production.example"
-            exit 1
-          fi
-
-          echo "PROJECT_DIR=$APP_DIR/projects/$PROJECT" >> "$GITHUB_ENV"
 
       - name: Sync source to VPS
         run: |
           set -euo pipefail
-          mkdir -p "$APP_DIR/projects/$PROJECT" "$APP_DIR/shared"
+          mkdir -p "$PROJECT_DIR" "$APP_DIR/shared"
 
-          # Project source. Secrets, dumps and backups on the VPS are never
-          # touched: --delete leaves excluded paths alone.
+          # Secrets, dumps and backups on the VPS are never touched: --delete
+          # leaves excluded paths alone.
           rsync -a --delete \
             --exclude='.env' \
             --exclude='database/*.sql' \
             --exclude='database/*.sql.gz' \
             --exclude='backups/' \
             --exclude='uploads/' \
-            "$GITHUB_WORKSPACE/projects/$PROJECT/" "$APP_DIR/projects/$PROJECT/"
+            "$GITHUB_WORKSPACE/projects/$PROJECT/" "$PROJECT_DIR/"
 
-          # Shared plugin/theme code mounted into the WordPress container.
-          rsync -a --delete \
-            --exclude='.env' \
+          rsync -a --delete --exclude='.env' \
             "$GITHUB_WORKSPACE/shared/" "$APP_DIR/shared/"
 
           chmod +x "$PROJECT_DIR"/scripts/*.sh
 
+      - name: Write .env from repository settings
+        env:
+          # Variables
+          SITE_URL:                   ${{ vars.ALOGWEB_SITE_URL }}
+          HTTP_PORT:                  ${{ vars.ALOGWEB_HTTP_PORT }}
+          HTTP_BIND_ADDRESS:          ${{ vars.ALOGWEB_HTTP_BIND_ADDRESS }}
+          HTTPS_PORT:                 ${{ vars.ALOGWEB_HTTPS_PORT }}
+          MYSQL_DATABASE:             ${{ vars.ALOGWEB_MYSQL_DATABASE }}
+          MYSQL_USER:                 ${{ vars.ALOGWEB_MYSQL_USER }}
+          WORDPRESS_TABLE_PREFIX:     ${{ vars.ALOGWEB_TABLE_PREFIX }}
+          MYSQL_PORT:                 ${{ vars.ALOGWEB_MYSQL_PORT }}
+          WORDPRESS_DEBUG:            ${{ vars.ALOGWEB_WORDPRESS_DEBUG }}
+          WP_AUTO_UPDATE_CORE:        ${{ vars.ALOGWEB_WP_AUTO_UPDATE_CORE }}
+          ALOGWEB_ADMIN_BAR:          ${{ vars.ALOGWEB_ADMIN_BAR }}
+          CONTAINER_PREFIX:           ${{ vars.ALOGWEB_CONTAINER_PREFIX }}
+          ALOGWEB_MYSQL_VOLUME:       ${{ vars.ALOGWEB_MYSQL_VOLUME }}
+          ALOGWEB_WORDPRESS_VOLUME:   ${{ vars.ALOGWEB_WORDPRESS_VOLUME }}
+          ALOGWEB_NETWORK:            ${{ vars.ALOGWEB_NETWORK }}
+          SITE_CONTACT_EMAIL:         ${{ vars.ALOGWEB_CONTACT_EMAIL }}
+          CONTACT_FORWARD_TO:         ${{ vars.ALOGWEB_CONTACT_FORWARD_TO }}
+          CONTACT_FROM_EMAIL:         ${{ vars.ALOGWEB_CONTACT_FROM_EMAIL }}
+          CONTACT_SMTP_HOST:          ${{ vars.ALOGWEB_SMTP_HOST }}
+          CONTACT_SMTP_PORT:          ${{ vars.ALOGWEB_SMTP_PORT }}
+          CONTACT_SMTP_USE_TLS:       ${{ vars.ALOGWEB_SMTP_USE_TLS }}
+          # Secrets
+          MYSQL_PASSWORD:             ${{ secrets.ALOGWEB_MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD:        ${{ secrets.ALOGWEB_MYSQL_ROOT_PASSWORD }}
+          CONTACT_SMTP_USER:          ${{ secrets.ALOGWEB_SMTP_USER }}
+          CONTACT_SMTP_PASSWORD:      ${{ secrets.ALOGWEB_SMTP_PASSWORD }}
+          ALOGWEB_ENV_FILE:           ${{ env.PROJECT_DIR }}/.env
+        run: |
+          set -euo pipefail
+          if [ -z "${MYSQL_PASSWORD:-}" ] || [ -z "${MYSQL_ROOT_PASSWORD:-}" ] || [ -z "${SITE_URL:-}" ]; then
+            if [ -f "$PROJECT_DIR/.env" ]; then
+              echo "::warning::ALOGWEB_SITE_URL / MYSQL secrets are not set; keeping the .env already on the VPS."
+              exit 0
+            fi
+            echo "Set ALOGWEB_SITE_URL (variable) and ALOGWEB_MYSQL_PASSWORD /"
+            echo "ALOGWEB_MYSQL_ROOT_PASSWORD (secrets) under Settings →"
+            echo "Secrets and variables → Actions, or place a .env on the VPS."
+            exit 1
+          fi
+          "$PROJECT_DIR/scripts/write-env.sh"
+
       - name: Check database dump is present
         run: |
           set -euo pipefail
-          if ls "$PROJECT_DIR"/database/alogweb_current.sql* >/dev/null 2>&1; then
-            ls -lh "$PROJECT_DIR"/database/alogweb_current.sql*
+          if ls "$PROJECT_DIR"/database/*.sql "$PROJECT_DIR"/database/*.sql.gz >/dev/null 2>&1; then
+            ls -lh "$PROJECT_DIR"/database/*.sql* 2>/dev/null
           else
             echo "::warning::No SQL dump in $PROJECT_DIR/database/."
-            echo "::warning::First deploy needs one: scp projects/alogweb/database/alogweb_current.sql to that directory."
+            echo "::warning::The first deploy needs one: scp the export there. Exactly one file."
           fi
 
       - name: Deploy stack
