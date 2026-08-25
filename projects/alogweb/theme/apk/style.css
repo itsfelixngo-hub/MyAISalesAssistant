@@ -62,7 +62,12 @@ h1,h2,h3,h4{margin:0; text-wrap:balance; letter-spacing:-.021em; font-weight:600
 .vh{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
 .skip{position:absolute; left:-9999px; top:0; z-index:200; background:var(--accent); color:var(--accent-ink); padding:10px 16px; border-radius:0 0 var(--r) 0;}
 .skip:focus{left:0;}
-.wrap{max-width:var(--wrap); margin:0 auto; padding-left:var(--gut); padding-right:var(--gut);}
+/* width:100% is load-bearing. body is a flex column for the sticky footer, and
+   a flex item with auto margins on the cross axis is NOT stretched - the margins
+   absorb the free space instead. Without it .wrap shrinks to fit its content,
+   which collapsed the card grid to a single column. */
+.wrap{width:100%; max-width:var(--wrap); margin:0 auto;
+  padding-left:var(--gut); padding-right:var(--gut);}
 main.wrap{padding-top:22px; padding-bottom:44px; display:block;}
 
 /* ============================================================ header */
