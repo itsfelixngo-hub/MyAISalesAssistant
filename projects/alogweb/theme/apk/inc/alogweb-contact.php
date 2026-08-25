@@ -96,7 +96,9 @@ function alogweb_captcha_pattern($size, $seed) {
     // Diagonal bands give the seam a strong, obvious direction.
     $band = max(6, (int) ($size / 14));
     for ($offset = -$size; $offset < $size * 2; $offset += $band * 2) {
-        $colour = $palette[($offset / ($band * 2) + 100) % count($palette)];
+        // intdiv, not /: the division yields a float and PHP 8 deprecates
+        // feeding one to %, which filled the log on every captcha render.
+        $colour = $palette[(intdiv($offset, $band * 2) + 100) % count($palette)];
         imagefilledpolygon($im, array(
             $offset, 0,
             $offset + $band, 0,
