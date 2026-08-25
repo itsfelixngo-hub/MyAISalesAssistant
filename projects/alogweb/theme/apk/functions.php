@@ -79,15 +79,28 @@ function alogweb_theme_setup() {
 		);
 }
 
+	/**
+	 * Cache-bust by file mtime, not by the theme version.
+	 *
+	 * A hand-maintained version number is only correct until the first edit
+	 * that forgets to bump it - and the symptom is a visitor holding a stale
+	 * stylesheet while the file on the server is already right, which reads as
+	 * a layout bug rather than a caching one. mtime cannot be forgotten.
+	 */
+	function alogweb_asset_version( $relative ) {
+		$path = get_theme_file_path( $relative );
+		return file_exists( $path ) ? (string) filemtime( $path ) : wp_get_theme()->get( 'Version' );
+	}
+
 	function alog_scripts(){
 		// Google Fonts is the only external host the front end talks to. jQuery,
 		// Font Awesome and main.js are gone: nothing in the templates uses them
 		// any more, and they cost 141KB for a menu toggle.
 		wp_enqueue_style( 'alogweb-fonts', 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap', array(), null );
-		wp_enqueue_style( 'alogweb-style', get_stylesheet_uri(), array( 'alogweb-fonts' ), wp_get_theme()->get( 'Version' ) );
-		wp_enqueue_script( 'alogweb-stars', get_theme_file_uri( '/assets/js/rating-stars.js' ), array(), '2.0.0', true );
+		wp_enqueue_style( 'alogweb-style', get_stylesheet_uri(), array( 'alogweb-fonts' ), alogweb_asset_version( '/style.css' ) );
+		wp_enqueue_script( 'alogweb-stars', get_theme_file_uri( '/assets/js/rating-stars.js' ), array(), alogweb_asset_version( '/assets/js/rating-stars.js' ), true );
 		if ( is_page_template( 'template-pages/contact.php' ) ) {
-			wp_enqueue_script( 'alogweb-rotate', get_theme_file_uri( '/assets/js/contact-rotate.js' ), array(), '2.0.0', true );
+			wp_enqueue_script( 'alogweb-rotate', get_theme_file_uri( '/assets/js/contact-rotate.js' ), array(), alogweb_asset_version( '/assets/js/contact-rotate.js' ), true );
 		}
 	}
 	add_action( 'wp_enqueue_scripts', 'alog_scripts' );
