@@ -92,6 +92,18 @@ function alogweb_theme_setup() {
 	}
 	add_action( 'wp_enqueue_scripts', 'alog_scripts' );
 
+	/*
+	 * No admin bar on the front end. It pins itself to the top of the viewport
+	 * and pushes the document down, so a signed-in editor was looking at a
+	 * different layout from the one visitors get - the worst possible view to
+	 * proofread a design in. wp-admin is unaffected.
+	 *
+	 * Set ALOGWEB_ADMIN_BAR=1 in the environment to put it back.
+	 */
+	if ( ! filter_var( getenv( 'ALOGWEB_ADMIN_BAR' ) ?: '0', FILTER_VALIDATE_BOOLEAN ) ) {
+		add_filter( 'show_admin_bar', '__return_false' );
+	}
+
 	// Emoji script and the block-library CSS are dead weight on this front end.
 	add_action( 'init', function () {
 		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );

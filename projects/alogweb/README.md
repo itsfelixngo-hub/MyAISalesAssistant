@@ -368,6 +368,16 @@ toàn bộ bằng:
 `_info` vẫn là nguồn sự thật; hai meta kia chỉ để sort. Sắp xếp áp qua
 `pre_get_posts` nên giữ đúng thứ tự khi sang trang.
 
+### Admin bar
+
+Ẩn ở front end. Admin bar tự ghim vào đỉnh màn hình và đẩy trang xuống bằng
+`html{margin-top}`, nên người đang đăng nhập nhìn thấy bố cục khác hẳn khách
+vãng lai — đúng góc nhìn tệ nhất để soát giao diện. `wp-admin` không ảnh hưởng.
+
+Bật lại bằng `ALOGWEB_ADMIN_BAR=1`. Các quy tắc `body.admin-bar` trong
+`style.css` vẫn giữ để lúc bật lại header dính đúng chỗ, không chui xuống dưới
+thanh.
+
 ### Đã gỡ bỏ
 
 `wp_is_mobile()` (render khác nhau theo user-agent nên phá cache), layout
