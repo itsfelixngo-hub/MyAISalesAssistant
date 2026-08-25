@@ -69,16 +69,40 @@ Workflow đồng bộ đúng cấu trúc repo vào đây:
 └── shared/               ← rsync từ repo
 ```
 
-### 3. File `.env`
+### 3. Cấu hình qua GitHub Environment
 
-```bash
-cd /home/deploy/apps/alogweb/projects/alogweb
-cp .env.production.example .env
-chmod 600 .env
-```
+Đặt ở **Settings → Environments → `alogweb-production`**, không phải Repository.
 
-Sửa `SITE_URL`, `HTTP_PORT`, mật khẩu MySQL. `.env` nằm trong danh sách exclude
-của rsync nên deploy không bao giờ ghi đè.
+Hai lý do. Repo này chứa nhiều project, mà secret cấp Repository thì **mọi
+workflow trong repo đều đọc được**. Và `workflow_dispatch` chạy được từ ref bất
+kỳ — bộ lọc `branches` chỉ áp cho `push` — nên không có branch rule thì ai cũng
+dispatch được một lần deploy production từ `main`.
+
+Sau khi tạo environment, bật **Deployment branches → Selected branches** và chỉ
+thêm `deploy/alogweb`.
+
+| Variables | |
+|---|---|
+| `ALOGWEB_SITE_URL` | **bắt buộc**. `http://<IP>:8093` lúc test, `https://alogweb.com` sau khi trỏ DNS |
+| `ALOGWEB_APP_DIR` | mặc định `/home/deploy/apps/alogweb` |
+| `ALOGWEB_HTTP_PORT` | mặc định 8093 |
+| `ALOGWEB_TABLE_PREFIX` | mặc định `apk_`, phải khớp dump |
+| `ALOGWEB_WP_IMAGE` | mặc định `7.1-php8.2-fpm`, phải khớp phiên bản đã tạo dump |
+| `ALOGWEB_SMTP_HOST` `ALOGWEB_SMTP_PORT` | form liên hệ |
+| `ALOGWEB_CONTACT_EMAIL` `ALOGWEB_CONTACT_FORWARD_TO` `ALOGWEB_CONTACT_FROM_EMAIL` | |
+
+| Secrets | |
+|---|---|
+| `ALOGWEB_MYSQL_PASSWORD` | **bắt buộc** |
+| `ALOGWEB_MYSQL_ROOT_PASSWORD` | **bắt buộc** |
+| `ALOGWEB_SMTP_USER` `ALOGWEB_SMTP_PASSWORD` | tuỳ chọn |
+
+Workflow ghi `.env` trên VPS từ những giá trị này ở **mỗi lần chạy**, nên trang
+Settings là nguồn sự thật duy nhất — không còn file ai đó sửa tay trên server rồi
+quên nội dung.
+
+Chưa cấu hình gì mà VPS đã có `.env` sẵn thì workflow giữ nguyên file đó, nên
+server dựng tay vẫn chạy trong lúc điền dần.
 
 ### 4. Dump database
 
