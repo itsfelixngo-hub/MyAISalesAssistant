@@ -241,14 +241,18 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .rotate{border:1px solid var(--line); border-radius:var(--r); padding:16px; margin:0;
   display:flex; flex-direction:column; gap:10px; align-items:flex-start; background:var(--surface-2);}
 .rotate legend{font-size:12.5px; font-weight:600; padding:0 6px;}
-.rotate-stage{align-self:center; width:200px; height:200px; display:grid; place-items:center;}
-.rotate-stage img{width:200px; height:200px; transition:transform .12s ease-out;}
+/* Two layers, same box: the background never moves, only the disc turns. One
+   image cannot pose this puzzle - rotating the whole picture leaves the seam
+   exactly as wrong as it started. */
+.rotate-stage{align-self:center; position:relative; width:240px; height:240px;}
+.rotate-stage img{position:absolute; inset:0; width:240px; height:240px; border-radius:var(--r);}
+.rotate-disc{transform-origin:50% 50%; transition:transform .12s ease-out; cursor:grab;}
 .rotate input[type="range"]{width:100%; accent-color:var(--accent);}
 .rotate output{font-family:var(--font-mono); font-size:12px; color:var(--ink-3);
   font-variant-numeric:tabular-nums; align-self:center;}
 .cform .actions{margin:0;}
 
-@media (prefers-reduced-motion:reduce){.rotate-stage img{transition:none;}}
+@media (prefers-reduced-motion:reduce){.rotate-disc{transition:none;}}
 
 /* ============================================================ pagination */
 .pager{margin:26px 0 0;}

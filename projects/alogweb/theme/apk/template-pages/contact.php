@@ -104,13 +104,20 @@ get_header();
 		</p>
 
 		<fieldset class="rotate" id="form">
-			<legend><?php esc_html_e('Turn the arrow upright', 'alogweb'); ?></legend>
-			<p class="hint"><?php esc_html_e('Drag the slider until the arrow points straight up.', 'alogweb'); ?></p>
+			<legend><?php esc_html_e('Line up the pattern', 'alogweb'); ?></legend>
+			<p class="hint"><?php esc_html_e('Drag the slider until the inner circle continues the pattern around it.', 'alogweb'); ?></p>
 
+			<?php
+			$captcha_bg   = add_query_arg(array('alogweb_captcha' => $token, 'part' => 'bg'), home_url('/'));
+			$captcha_disc = add_query_arg(array('alogweb_captcha' => $token, 'part' => 'disc'), home_url('/'));
+			?>
 			<div class="rotate-stage">
-				<img id="cf-captcha" width="200" height="200" decoding="async"
-				     src="<?php echo esc_url(add_query_arg('alogweb_captcha', $token, home_url('/'))); ?>"
-				     alt="<?php esc_attr_e('A tilted arrow to be turned upright', 'alogweb'); ?>">
+				<img class="rotate-bg" width="240" height="240" decoding="async"
+				     src="<?php echo esc_url($captcha_bg); ?>"
+				     alt="<?php esc_attr_e('A patterned square with a circular piece missing', 'alogweb'); ?>">
+				<img class="rotate-disc" id="cf-captcha" width="240" height="240" decoding="async"
+				     src="<?php echo esc_url($captcha_disc); ?>"
+				     alt="<?php esc_attr_e('The missing circular piece, turned out of line', 'alogweb'); ?>">
 			</div>
 
 			<label class="vh" for="cf-rotation"><?php esc_html_e('Rotation in degrees', 'alogweb'); ?></label>
