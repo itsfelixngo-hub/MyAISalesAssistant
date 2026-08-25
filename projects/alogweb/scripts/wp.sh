@@ -44,4 +44,4 @@ exec docker run --rm -i \
     -v "$PROJECT_DIR/../../shared/plugins/ai-post-content-writer:/var/www/html/wp-content/plugins/my-ai-sales-assistant" \
     -v "$PROJECT_DIR/theme/apk:/var/www/html/wp-content/themes/apk" \
     -w /var/www/html \
-    wordpress:cli-php8.1 wp --path=/var/www/html "$@"
+    "wordpress:${ALOGWEB_WPCLI_IMAGE:-cli-php8.2}" wp --path=/var/www/html "$@"

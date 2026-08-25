@@ -61,6 +61,8 @@ trap 'rm -f "$TMP"' EXIT
     emit DISABLE_WP_CRON true
     emit WORDPRESS_DEBUG
     emit WP_AUTO_UPDATE_CORE minor
+    emit ALOGWEB_WP_IMAGE 7.1-php8.2-fpm
+    emit ALOGWEB_WPCLI_IMAGE cli-php8.2
     emit ALOGWEB_ADMIN_BAR 0
     printf '\n'
 
@@ -72,6 +74,9 @@ trap 'rm -f "$TMP"' EXIT
     emit ALOGWEB_CERTBOT_WEBROOT_VOLUME alogweb_certbot_webroot
     emit ALOGWEB_NETWORK alogweb_net
     emit CONTAINER_PREFIX maa_alogweb
+    # Compose identifies a stack by this, not by container names. A second
+    # checkout needs its own value or it takes over the first one's containers.
+    emit COMPOSE_PROJECT_NAME maa-alogweb
     emit ALOGWEB_BACKUP_KEEP_DAYS 14
     printf '\n'
 
