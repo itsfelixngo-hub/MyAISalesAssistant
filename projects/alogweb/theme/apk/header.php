@@ -4,6 +4,23 @@
 <head>
 	<meta charset="<?php bloginfo('charset'); ?>">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<?php
+	/*
+	 * Google reads the icon from the home page's <head> and wants a square at
+	 * least 48px on a side. The 32x32 that shipped with the theme was never
+	 * referenced anywhere and is below that floor, which is why search results
+	 * showed the default globe.
+	 */
+	$alogweb_icons = get_theme_file_uri('/assets/icons');
+	?>
+	<link rel="icon" href="<?php echo esc_url($alogweb_icons . '/favicon.ico'); ?>" sizes="any">
+	<link rel="icon" type="image/png" sizes="48x48" href="<?php echo esc_url($alogweb_icons . '/icon-48.png'); ?>">
+	<link rel="icon" type="image/png" sizes="96x96" href="<?php echo esc_url($alogweb_icons . '/icon-96.png'); ?>">
+	<link rel="icon" type="image/png" sizes="192x192" href="<?php echo esc_url($alogweb_icons . '/icon-192.png'); ?>">
+	<link rel="apple-touch-icon" sizes="180x180" href="<?php echo esc_url($alogweb_icons . '/icon-180.png'); ?>">
+	<meta name="theme-color" content="#00806F">
+
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<?php wp_head(); ?>
