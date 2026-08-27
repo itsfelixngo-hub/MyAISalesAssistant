@@ -12,6 +12,8 @@ include 'inc/alogweb-sort.php';
 include 'inc/alogweb-search.php';
 include 'inc/alogweb-migration.php';
 include 'inc/alogweb-contact.php';
+include 'inc/alogweb-hardening.php';
+include 'inc/alogweb-analytics.php';
 // include 'inc/class_yoast_seo.php';
 /*
  * Theme setup must run on after_setup_theme. Calling __() while this file is

@@ -65,6 +65,9 @@ trap 'rm -f "$TMP"' EXIT
     emit ALOGWEB_WPCLI_IMAGE cli-php8.2
     emit ALOGWEB_ADMIN_BAR 0
     emit ALOGWEB_STATIC_HOST
+    emit ALOGWEB_CF_BEACON_TOKEN
+    emit ALOGWEB_GA_MEASUREMENT_ID
+    emit ALOGWEB_ANALYTICS_HTML_B64
     printf '\n'
 
     emit ALOGWEB_MYSQL_VOLUME alogweb_mysql_data

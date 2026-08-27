@@ -27,6 +27,12 @@ x-wordpress-env: &wordpress-env
     # ANY non-empty value is truthy, including the string "false".
     WORDPRESS_DEBUG: ${WORDPRESS_DEBUG:-}
     AIPCW_PROJECT_ID: alogweb
+    # The measurement beacon. Injected only on public front-end views, never
+    # on wp-admin and never for a logged-in user - see
+    # theme/apk/inc/alogweb-analytics.php. All empty means no beacon.
+    ALOGWEB_CF_BEACON_TOKEN: ${ALOGWEB_CF_BEACON_TOKEN:-}
+    ALOGWEB_GA_MEASUREMENT_ID: ${ALOGWEB_GA_MEASUREMENT_ID:-}
+    ALOGWEB_ANALYTICS_HTML_B64: ${ALOGWEB_ANALYTICS_HTML_B64:-}
     # 1 puts the WordPress admin bar back on the front end.
     ALOGWEB_ADMIN_BAR: ${ALOGWEB_ADMIN_BAR:-0}
     # Pin the screenshot proxy host. Empty derives it from SITE_URL, which
@@ -61,7 +67,11 @@ x-wordpress-env: &wordpress-env
       if (isset($$_SERVER['HTTP_X_FORWARDED_FOR'])) {
           $$_SERVER['REMOTE_ADDR'] = trim(explode(',', $$_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
       }
-      if (!defined('WP_DEBUG_LOG')) define('WP_DEBUG_LOG', true);
+      // Outside the document root on purpose. Left at the default, WordPress
+      // writes wp-content/debug.log, which nginx then happily serves to anyone
+      // who asks - a file full of absolute paths, queries and plugin internals.
+      // /tmp is the one place www-data can write that no vhost maps to.
+      if (!defined('WP_DEBUG_LOG')) define('WP_DEBUG_LOG', '/tmp/alogweb-debug.log');
       if (!defined('WP_DEBUG_DISPLAY')) define('WP_DEBUG_DISPLAY', false);
       define('DISALLOW_FILE_EDIT', true);
       define('DISABLE_WP_CRON', ${DISABLE_WP_CRON:-true});
