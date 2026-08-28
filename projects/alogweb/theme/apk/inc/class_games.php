@@ -85,19 +85,12 @@ function get_source($_tPath){
     $ratingValue = isset($schema['aggregateRating']['ratingValue']) ? (string) $schema['aggregateRating']['ratingValue'] : '';
     $dev = isset($schema['author']['name']) ? (string) $schema['author']['name'] : '';
     $download = $meta_value('og:url') ?: $tPath;
-    $screenshots = array();
-    preg_match_all('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $result, $image_matches);
-    foreach (array_slice(isset($image_matches[1]) ? $image_matches[1] : array(), 0, 10) as $image_url) $screenshots[] = html_entity_decode($image_url, ENT_QUOTES, 'UTF-8');
-    // Google Play embeds additional screenshots as play-lh.googleusercontent.com
-    // URLs in JSON/HTML, not only in the single og:image meta tag.
-    preg_match_all('~play-lh\.googleusercontent\.com/[^"\'\\<>\s]+~i', $result, $google_images);
-    foreach (isset($google_images[0]) ? $google_images[0] : array() as $image_path) {
-        $image_path = str_replace(array('\\/', '\\u003d', '\\u0026'), array('/', '=', '&'), html_entity_decode($image_path, ENT_QUOTES, 'UTF-8'));
-        $screenshots[] = 'https://' . $image_path;
-    }
-    $screenshots = array_values(array_unique(array_filter($screenshots)));
+    // og:image is the app icon, not a screenshot. Keeping it as the feature
+    // image is right; adding it to the strip - and then sweeping up every other
+    // play-lh URL on the page with it - is what put reviewer avatars and other
+    // developers' icons in the carousel. See inc/alogweb-play.php.
+    $screenshots = alogweb_extract_screenshots($result);
     $feature_image = $feature_image ?: (isset($screenshots[0]) ? $screenshots[0] : '');
-    $screenshots = array_slice($screenshots, 0, 20);
     $publish = array('', ''); $size = array('', ''); $version = array('', ''); $android = array('', '');
     $info_values = array();
     preg_match_all('/<span[^>]+class=["\'][^"\']*htlgb[^"\']*["\'][^>]*>(.*?)<\/span>/si', $result, $info_matches);
@@ -157,17 +150,44 @@ function info_games_callback($post){
     $html = "<textarea id='info' type='hidden' name='_info'>".$info_game."</textarea>";
     echo $html;
 }
+/**
+ * One editable row: thumbnail, URL, remove.
+ *
+ * The thumbnail is the point of the row. An imported list can contain reviewer
+ * avatars and other apps' icons, and a wall of near-identical googleusercontent
+ * URLs gives no way to tell which is which - seeing the image does.
+ *
+ * name="_screenshots[]" with no index on purpose: removing a row then leaves no
+ * gap to renumber, PHP reindexes the array on submit.
+ */
+function alogweb_screenshot_row($url = '') {
+    ob_start(); ?>
+    <div class="alogweb-shot">
+        <img src="<?php echo esc_url($url); ?>" alt="" class="alogweb-shot-thumb"
+             onerror="this.classList.add('is-broken')">
+        <input class="screenshots" type="url" name="_screenshots[]" value="<?php echo esc_attr($url); ?>">
+        <button type="button" class="button alogweb-shot-remove" aria-label="Remove this screenshot">&times;</button>
+    </div>
+    <?php return ob_get_clean();
+}
+
 function screenshots_callback($post){
     $screenshots = get_post_meta($post->ID, '_screenshots', true);
-    $_screenshots = "";
-    if($screenshots){
-        $str = '';
-        foreach ($screenshots as $key => $value) {
-            $str= $str.'<input class="screenshots" type="text" name="_screenshots['.$key.']" value="'.$value.'">';
-        }
-        $_screenshots = $str; 
-    }
-    echo $_screenshots;
+    $screenshots = is_array($screenshots) ? array_values(array_filter($screenshots)) : array();
+    ?>
+    <div id="alogweb-shots"><?php
+        foreach ($screenshots as $url) { echo alogweb_screenshot_row($url); }
+    ?></div>
+    <p class="alogweb-shot-actions">
+        <button type="button" class="button" id="alogweb-shot-add">Add screenshot</button>
+        <button type="button" class="button" id="alogweb-shot-clear">Remove all</button>
+        <span class="alogweb-shot-count"></span>
+    </p>
+    <?php
+    // Tells the save handler that this metabox was on screen. Without it,
+    // removing every row is indistinguishable from a request that never
+    // carried the field - and the empty list would be silently ignored.
+    ?><input type="hidden" name="_screenshots_present" value="1"><?php
 }
 
 add_action('admin_head', function(){
@@ -175,7 +195,14 @@ add_action('admin_head', function(){
     width: 100%;
 }textarea#info {
     width: 100%;
-}</style>';
+}
+#alogweb-shots{display:flex;flex-direction:column;gap:6px}
+.alogweb-shot{display:flex;align-items:center;gap:8px}
+.alogweb-shot-thumb{width:46px;height:46px;object-fit:cover;flex:none;border:1px solid #dcdcde;border-radius:3px;background:#f0f0f1}
+.alogweb-shot-thumb.is-broken{opacity:.25}
+.alogweb-shot input.screenshots{flex:1 1 auto;width:auto}
+.alogweb-shot-remove{flex:none;color:#b32d2e}
+.alogweb-shot-count{color:#646970;margin-left:10px}</style>';
 		?>
         <script type="text/javascript">
         jQuery(function ($) {     
@@ -217,11 +244,13 @@ add_action('admin_head', function(){
                     
                     var _screenshots = data.screenshots;
                    
-                    if(_screenshots.length > 0 ){
-                        $("#screenshots .inside").html("");
-                        $.each(_screenshots, function(i, val){
-                              $("#screenshots .inside").append('<input class="screenshots" type="text" name="_screenshots['+i+']" value="'+val+'">');
-                            });    
+                    if(_screenshots.length > 0 && window.alogwebShotRow){
+                        var shotBox = document.getElementById('alogweb-shots');
+                        if (shotBox) {
+                            shotBox.innerHTML = '';
+                            $.each(_screenshots, function(i, val){ shotBox.appendChild(window.alogwebShotRow(val)); });
+                            if (window.alogwebShotCount) { window.alogwebShotCount(); }
+                        }
                     }
                     
                },
@@ -303,7 +332,7 @@ function save_post_callback($post_id){
         $get_info = json_decode($info);
         if (!$get_info) return;
         
-        if(isset($_POST['_screenshots'])) $_screenshots = $_POST['_screenshots'];
+
         $post_name = preg_replace('/[^A-Za-z0-9- ]/', '', $post_name);
         $cat = isset($get_info->cat) ? sanitize_text_field($get_info->cat) : '';
         if ($cat && !has_category($cat)) wp_create_category($cat);
@@ -313,7 +342,19 @@ function save_post_callback($post_id){
         update_post_meta($post_id, '_download_game', $_download_game);      
         update_post_meta($post_id, '_info', $get_info );
 
-        update_post_meta($post_id, '_screenshots', $_screenshots);   
+        // Only touch the screenshots when the metabox was actually submitted.
+        // $_screenshots used to be written unconditionally while only being
+        // assigned inside an isset() - so any save without the field wrote null
+        // over the list, on top of an undefined-variable warning under PHP 8.
+        if (isset($_POST['_screenshots']) || isset($_POST['_screenshots_present'])) {
+            $submitted = isset($_POST['_screenshots']) ? (array) wp_unslash($_POST['_screenshots']) : array();
+            $clean = array();
+            foreach ($submitted as $url) {
+                $url = esc_url_raw(trim($url));
+                if ($url !== '') { $clean[] = $url; }
+            }
+            update_post_meta($post_id, '_screenshots', array_values(array_unique($clean)));
+        }
     }
 }
 // add_filter('post_type_link', 'change_permalink_structure', 10, 4);
@@ -355,3 +396,83 @@ function change_permalink_structure($permalink, $post, $leavename, $sample)
 // 	}
 // }
 // add_action( 'pre_get_posts', 'na_parse_request' );
+
+/**
+ * Add, remove and preview rows in the Screenshots metabox.
+ *
+ * Rows are built with DOM calls rather than string concatenation: the values
+ * are URLs that came from a scraped page, and a quote inside one would break
+ * out of an attribute if it were pasted into markup.
+ */
+add_action('admin_footer', function () {
+    $screen = get_current_screen();
+    if (!$screen || $screen->base !== 'post' || $screen->post_type !== 'post') { return; }
+    ?>
+    <script type="text/javascript">
+    (function ($) {
+        window.alogwebShotRow = function (url) {
+            url = url || '';
+            var row = document.createElement('div');
+            row.className = 'alogweb-shot';
+
+            var img = document.createElement('img');
+            img.className = 'alogweb-shot-thumb';
+            img.alt = '';
+            img.loading = 'lazy';
+            img.onerror = function () { this.classList.add('is-broken'); };
+            if (url) { img.src = url; }
+
+            var input = document.createElement('input');
+            input.className = 'screenshots';
+            input.type = 'url';
+            input.name = '_screenshots[]';
+            input.value = url;
+
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'button alogweb-shot-remove';
+            remove.setAttribute('aria-label', 'Remove this screenshot');
+            remove.appendChild(document.createTextNode('\u00d7'));
+
+            row.appendChild(img);
+            row.appendChild(input);
+            row.appendChild(remove);
+            return row;
+        };
+
+        $(function () {
+            var box = document.getElementById('alogweb-shots');
+            if (!box) { return; }
+
+            window.alogwebShotCount = function () {
+                $('.alogweb-shot-count').text(box.querySelectorAll('.alogweb-shot').length + ' screenshot(s)');
+            };
+            window.alogwebShotCount();
+
+            $(document).on('click', '.alogweb-shot-remove', function () {
+                $(this).closest('.alogweb-shot').remove();
+                window.alogwebShotCount();
+            });
+            $('#alogweb-shot-add').on('click', function () {
+                box.appendChild(window.alogwebShotRow(''));
+                window.alogwebShotCount();
+            });
+            $('#alogweb-shot-clear').on('click', function () {
+                if (!box.querySelector('.alogweb-shot')) { return; }
+                if (!window.confirm('Remove all screenshots from this post?')) { return; }
+                box.innerHTML = '';
+                window.alogwebShotCount();
+            });
+            // Retype a URL and the preview follows, so a bad paste shows up
+            // before the post is saved.
+            $(box).on('input', 'input.screenshots', function () {
+                var img = this.parentNode.querySelector('.alogweb-shot-thumb');
+                if (!img) { return; }
+                img.classList.remove('is-broken');
+                img.src = this.value;
+            });
+        });
+    })(jQuery);
+    </script>
+    <?php
+});

@@ -199,7 +199,13 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 
 .shots{display:flex; gap:9px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:8px; margin-bottom:22px;}
 .shots a{flex:none; scroll-snap-align:start;}
-.shots img{width:250px; aspect-ratio:2/1; object-fit:cover; border-radius:var(--r); border:1px solid var(--line);}
+/* Bounded on both axes instead of cropped to a fixed ratio. A landscape game
+   screenshot (1024x500) is limited by max-width and a portrait phone one
+   (1081x2221) by max-height, so both keep their own shape - the old
+   aspect-ratio:2/1 with object-fit:cover reduced every portrait screenshot
+   to a thin horizontal band sliced out of the middle of the screen. */
+.shots img{width:auto; height:auto; max-width:250px; max-height:340px; display:block;
+          border-radius:var(--r); border:1px solid var(--line); background:var(--surface-2);}
 
 .article h2{font-family:var(--font-ui); font-size:13px; font-weight:700; letter-spacing:.1em;
   text-transform:uppercase; padding-bottom:9px; border-bottom:1px solid var(--line); margin:0 0 14px;}
@@ -362,6 +368,6 @@ body.admin-bar .idcard{top:112px;}
   .article .headline{font-size:20px;}
   .article p,.article li{font-size:16px;}
   .ft-cols{grid-template-columns:1fr 1fr;}
-  .shots img{width:210px;}
+  .shots img{max-width:210px; max-height:290px;}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important; scroll-behavior:auto!important;}}

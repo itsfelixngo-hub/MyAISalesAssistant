@@ -16,6 +16,14 @@ final class AI_Post_Content_Writer {
     const BACKUP_META = '_aipcw_backup_history';
     const CRON = 'aipcw_process_batch';
     const BATCH_SIZE = 1;
+    // Sweeps are the store-maintenance jobs: re-read a Play listing and write
+    // one thing back. Each keeps its own option, cron hook and queue, so none of
+    // them can disturb a content-generation run that is halfway through - or
+    // each other. Higher batch size than BATCH_SIZE because a batch here is
+    // three HTTP fetches, not three model calls: no token budget to pace.
+    const SWEEP_BATCH_SIZE = 3;
+    const STORE_STATUS_META = '_alogweb_store_status';
+    const STORE_CHECKED_META = '_alogweb_store_checked';
 
     public function __construct() {
         add_action('admin_menu', array($this, 'admin_menu'));
@@ -29,7 +37,15 @@ final class AI_Post_Content_Writer {
         add_action('admin_post_aipcw_revert', array($this, 'revert_post'));
         add_action('wp_ajax_aipcw_status', array($this, 'ajax_status'));
         add_action(self::CRON, array($this, 'process_batch'));
-        if (defined('WP_CLI') && WP_CLI) { WP_CLI::add_command('aipcw worker', array($this, 'cli_worker')); }
+        add_action('admin_post_aipcw_start_sweep', array($this, 'start_sweep'));
+        add_action('admin_post_aipcw_stop_sweep', array($this, 'stop_sweep'));
+        foreach ($this->sweeps() as $sweep_key => $sweep) {
+            add_action($sweep['cron'], function () use ($sweep_key) { $this->process_sweep($sweep_key); });
+        }
+        if (defined('WP_CLI') && WP_CLI) {
+            WP_CLI::add_command('aipcw worker', array($this, 'cli_worker'));
+            WP_CLI::add_command('aipcw sweep', array($this, 'cli_sweep'));
+        }
     }
 
     public function admin_menu() {
@@ -87,6 +103,7 @@ final class AI_Post_Content_Writer {
         $job = $this->job();
         $posts = get_posts(array('post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending'), 'numberposts' => 100));
         $percent = $job['total'] ? min(100, round(($job['processed'] / $job['total']) * 100)) : 0;
+
         $test_result = isset($_GET['aipcw_test']) ? sanitize_key($_GET['aipcw_test']) : '';
         $test_id = isset($_GET['test_id']) ? absint($_GET['test_id']) : 0;
         $test_mode = isset($_GET['test_mode']) ? sanitize_key($_GET['test_mode']) : '';
@@ -146,6 +163,72 @@ Requirements:
             <?php if (!empty($job['created_ids'])): ?><h2>Created drafts</h2><ul><?php foreach ($job['created_ids'] as $created_id): $created_post = get_post($created_id); if (!$created_post) { continue; } ?><li><a href="<?php echo esc_url(get_edit_post_link($created_id)); ?>"><?php echo esc_html($created_post->post_title); ?></a></li><?php endforeach; ?></ul><?php endif; ?>
             <h2>Backup history</h2>
             <?php if (empty($backup_posts)): ?><p>No backups available yet. Run a test or scan in update mode first.</p><?php else: ?><table class="widefat striped"><thead><tr><th>Post</th><th>Versions</th><th>Latest backup</th><th>Actions</th></tr></thead><tbody><?php foreach ($backup_posts as $backup_post): $history = get_post_meta($backup_post->ID, self::BACKUP_META, true); $count = is_array($history) ? count($history) : 0; $latest = $count ? $history[$count - 1] : array(); ?><tr><td><a href="<?php echo esc_url(get_edit_post_link($backup_post->ID)); ?>"><?php echo esc_html($backup_post->post_title ?: '(Untitled)'); ?></a></td><td><?php echo esc_html($count); ?></td><td><?php echo esc_html(isset($latest['time']) ? $latest['time'] : ''); ?></td><td><a class="button" href="<?php echo esc_url(add_query_arg(array('page' => 'ai-post-content-writer', 'aipcw_backup_preview' => $backup_post->ID), admin_url('admin.php'))); ?>">View latest backup</a> <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><input type="hidden" name="action" value="aipcw_revert" /><input type="hidden" name="post_id" value="<?php echo esc_attr($backup_post->ID); ?>" /><?php wp_nonce_field('aipcw_revert_' . $backup_post->ID); ?><button type="submit" class="button">Revert latest</button></form></td></tr><?php endforeach; ?></tbody></table><?php endif; ?>
+            <hr />
+            <h2>Store maintenance</h2>
+            <?php foreach ($this->sweeps() as $sweep_key => $sweep):
+                $sweep_job = $this->sweep_job($sweep_key);
+                $sweep_pct = $sweep_job['total'] ? min(100, round(($sweep_job['processed'] / $sweep_job['total']) * 100)) : 0;
+                $sweep_running = $sweep_job['status'] === 'running';
+            ?>
+                <h3><?php echo esc_html($sweep['label']); ?></h3>
+                <p><?php echo wp_kses($sweep['blurb'], array('strong' => array())); ?></p>
+                <?php if (!$this->sweep_ready($sweep_key)): ?>
+                    <div class="notice notice-warning inline"><p>The alogweb theme is not active, so there is no Google Play parser to call.</p></div>
+                <?php endif; ?>
+                <p><strong>Status:</strong> <?php echo esc_html($sweep_job['status']); ?> &nbsp;
+                   <strong>Progress:</strong> <?php echo esc_html($sweep_job['processed'] . '/' . $sweep_job['total'] . ' (' . $sweep_pct . '%)'); ?>
+                   <?php if ($sweep_job['finished']): ?> &nbsp; <em>last finished <?php echo esc_html($sweep_job['finished']); ?></em><?php endif; ?></p>
+                <?php if ($sweep_job['processed']): ?>
+                    <p>Updated: <?php echo esc_html($sweep_job['updated']); ?>,
+                       Unchanged: <?php echo esc_html($sweep_job['unchanged']); ?>,
+                       No store URL: <?php echo esc_html($sweep_job['skipped']); ?>,
+                       Failed: <?php echo esc_html($sweep_job['failed']); ?>.</p>
+                <?php endif; ?>
+                <?php if ($sweep_job['last_error']): ?>
+                    <div class="notice notice-error inline"><p><?php echo esc_html($sweep_job['last_error']); ?></p></div>
+                <?php endif; ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:8px">
+                    <input type="hidden" name="action" value="aipcw_start_sweep" />
+                    <input type="hidden" name="sweep" value="<?php echo esc_attr($sweep_key); ?>" />
+                    <?php wp_nonce_field('aipcw_start_sweep'); ?>
+                    <?php submit_button($sweep_running ? 'Đang chạy' : 'Chạy cho toàn bộ posts', 'primary', 'submit', false,
+                        ($sweep_running || !$this->sweep_ready($sweep_key)) ? 'disabled="disabled"' : ''); ?>
+                </form>
+                <?php if ($sweep_running): ?>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                        <input type="hidden" name="action" value="aipcw_stop_sweep" />
+                        <input type="hidden" name="sweep" value="<?php echo esc_attr($sweep_key); ?>" />
+                        <?php wp_nonce_field('aipcw_stop_sweep'); ?>
+                        <?php submit_button('Stop', 'secondary', 'submit', false); ?>
+                    </form>
+                <?php endif; ?>
+                <?php if (!empty($sweep_job['failed_ids'])): ?>
+                    <p><strong>Failed:</strong>
+                    <?php foreach (array_slice($sweep_job['failed_ids'], 0, 40) as $failed_id): ?>
+                        <a href="<?php echo esc_url(get_edit_post_link($failed_id)); ?>">#<?php echo absint($failed_id); ?></a>
+                    <?php endforeach; ?>
+                    <?php if (count($sweep_job['failed_ids']) > 40): ?> and <?php echo absint(count($sweep_job['failed_ids']) - 40); ?> more<?php endif; ?></p>
+                <?php endif; ?>
+            <?php endforeach; ?>
+
+            <h3>Apps no longer on Google Play</h3>
+            <?php $gone = $this->delisted_posts(); ?>
+            <?php if (empty($gone)): ?>
+                <p>None recorded. Run <em>Delisted app check</em> to populate this.</p>
+            <?php else: ?>
+                <p><?php echo absint(count($gone)); ?> post(s) point at a listing Google Play answers with 404.
+                   Their screenshots and metadata are left as they are - this is a report, not a cleanup.</p>
+                <table class="widefat striped"><thead><tr><th>Post</th><th>Store URL</th><th>Checked</th></tr></thead><tbody>
+                <?php foreach ($gone as $gone_id): ?>
+                    <tr>
+                        <td><a href="<?php echo esc_url(get_edit_post_link($gone_id)); ?>"><?php echo esc_html(get_the_title($gone_id) ?: '(Untitled)'); ?></a></td>
+                        <td><?php $gone_url = $this->store_url_for($gone_id); ?><a href="<?php echo esc_url($gone_url); ?>" target="_blank" rel="noopener"><?php echo esc_html($gone_url); ?></a></td>
+                        <td><?php echo esc_html(get_post_meta($gone_id, self::STORE_CHECKED_META, true)); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody></table>
+            <?php endif; ?>
+
             <hr />
             <h2>AI provider settings</h2>
             <form method="post" action="options.php"><?php settings_fields('aipcw_settings_group'); do_settings_sections('ai-post-content-writer-settings'); submit_button('Save settings'); ?></form>
@@ -257,6 +340,261 @@ Requirements:
         $job = $this->job();
         unset($job['queue']);
         wp_send_json_success($job);
+    }
+
+    /**
+     * The store-maintenance sweeps, and what each one writes back.
+     *
+     * 'requires' names the theme functions a sweep calls. The parsing lives in
+     * the alogweb theme (inc/alogweb-play.php) because that is the only place
+     * that knows what an alogweb post stores; the plugin owns the queue and
+     * nothing else. One parser to fix when Google changes its markup, rather
+     * than two that drift apart.
+     */
+    public function sweeps() {
+        return array(
+            'shots' => array(
+                'label'    => 'Screenshot sync',
+                'blurb'    => "Re-reads every post's Play listing and rewrites its screenshot list.",
+                'option'   => 'aipcw_sweep_shots',
+                'cron'     => 'aipcw_sweep_shots_cron',
+                'method'   => 'sweep_screenshots',
+                'requires' => array('alogweb_fetch_play_html', 'alogweb_extract_screenshots'),
+            ),
+            'info' => array(
+                'label'    => 'App info sync',
+                'blurb'    => 'Refreshes developer, rating, category, install count and last-updated date. '
+                            . 'Version, size and minimum Android are <strong>not touched</strong>: Play stopped '
+                            . 'serving them in the HTML, so the stored values are left alone rather than blanked.',
+                'option'   => 'aipcw_sweep_info',
+                'cron'     => 'aipcw_sweep_info_cron',
+                'method'   => 'sweep_info',
+                'requires' => array('alogweb_fetch_play_html', 'alogweb_extract_app_info'),
+            ),
+            'store' => array(
+                'label'    => 'Delisted app check',
+                'blurb'    => 'Asks Play whether each app still exists. Only a 404 counts as gone - a timeout or '
+                            . 'a 5xx says something about the network, not about the app.',
+                'option'   => 'aipcw_sweep_store',
+                'cron'     => 'aipcw_sweep_store_cron',
+                'method'   => 'sweep_store_status',
+                'requires' => array('alogweb_play_status'),
+            ),
+        );
+    }
+
+    private function sweep_def($key) {
+        $sweeps = $this->sweeps();
+        return isset($sweeps[$key]) ? $sweeps[$key] : null;
+    }
+
+    public function sweep_job($key) {
+        $def = $this->sweep_def($key);
+        if (!$def) { return array(); }
+        return wp_parse_args(get_option($def['option'], array()), array(
+            'status' => 'idle', 'queue' => array(), 'total' => 0, 'processed' => 0,
+            'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
+            'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+        ));
+    }
+
+    public function sweep_ready($key) {
+        $def = $this->sweep_def($key);
+        if (!$def) { return false; }
+        foreach ($def['requires'] as $fn) { if (!function_exists($fn)) { return false; } }
+        return true;
+    }
+
+    public function store_url_for($post_id) {
+        $info = get_post_meta($post_id, '_info', true);
+        if (is_object($info) && !empty($info->store_url)) { return (string) $info->store_url; }
+        if (is_array($info) && !empty($info['store_url'])) { return (string) $info['store_url']; }
+        return '';
+    }
+
+    public function start_sweep() {
+        if (!current_user_can('edit_posts')) { wp_die('Permission denied.'); }
+        check_admin_referer('aipcw_start_sweep');
+        $key = isset($_POST['sweep']) ? sanitize_key($_POST['sweep']) : '';
+        $def = $this->sweep_def($key);
+        if (!$def) { $this->redirect(); }
+        if ($this->sweep_job($key)['status'] === 'running') { $this->redirect(); }
+
+        if (!$this->sweep_ready($key)) {
+            update_option($def['option'], array_merge($this->sweep_job($key), array(
+                'status' => 'idle',
+                'last_error' => 'The alogweb theme is not active, so there is no Google Play parser to call.',
+            )), false);
+            $this->redirect();
+        }
+
+        $ids = get_posts(array(
+            'post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
+            'numberposts' => -1, 'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC',
+        ));
+        update_option($def['option'], array(
+            'status' => 'running', 'queue' => array_map('absint', $ids), 'total' => count($ids),
+            'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
+            'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+        ), false);
+        wp_schedule_single_event(time() + 1, $def['cron']);
+        $this->redirect();
+    }
+
+    public function stop_sweep() {
+        if (!current_user_can('edit_posts')) { wp_die('Permission denied.'); }
+        check_admin_referer('aipcw_stop_sweep');
+        $key = isset($_POST['sweep']) ? sanitize_key($_POST['sweep']) : '';
+        $def = $this->sweep_def($key);
+        if (!$def) { $this->redirect(); }
+        $job = $this->sweep_job($key);
+        $job['status'] = 'stopped';
+        update_option($def['option'], $job, false);
+        wp_clear_scheduled_hook($def['cron']);
+        $this->redirect();
+    }
+
+    public function process_sweep($key, $schedule_next = true) {
+        $def = $this->sweep_def($key);
+        if (!$def) { return; }
+        $job = $this->sweep_job($key);
+        if ($job['status'] !== 'running') { return; }
+
+        if (!$this->sweep_ready($key)) {
+            $job['status'] = 'stopped';
+            $job['last_error'] = 'The alogweb theme is not active, so there is no Google Play parser to call.';
+            update_option($def['option'], $job, false);
+            return;
+        }
+
+        foreach (array_splice($job['queue'], 0, self::SWEEP_BATCH_SIZE) as $post_id) {
+            // Re-read rather than trusting the copy taken before the fetch: a
+            // Stop pressed mid-batch has to take effect on this iteration.
+            if ($this->sweep_job($key)['status'] !== 'running') { return; }
+            $post_id = absint($post_id);
+            $job['processed']++;
+
+            $outcome = call_user_func(array($this, $def['method']), $post_id);
+            $job[$outcome['status']]++;
+            if ($outcome['status'] === 'failed') {
+                $job['failed_ids'][] = $post_id;
+                $job['last_error'] = sprintf('#%d: %s', $post_id, $outcome['error']);
+            } else if ($outcome['status'] === 'updated') {
+                $job['last_error'] = '';
+            }
+        }
+
+        if ($this->sweep_job($key)['status'] !== 'running') { return; }
+        if (empty($job['queue'])) {
+            $job['status'] = 'completed';
+            $job['finished'] = current_time('mysql');
+            wp_clear_scheduled_hook($def['cron']);
+        } else if ($schedule_next) {
+            wp_schedule_single_event(time() + 5, $def['cron']);
+        }
+        update_option($def['option'], $job, false);
+    }
+
+    private function sweep_screenshots($post_id) {
+        $store = $this->store_url_for($post_id);
+        if ($store === '') { return array('status' => 'skipped', 'error' => ''); }
+
+        $html = alogweb_fetch_play_html($store);
+        if (is_wp_error($html)) { return array('status' => 'failed', 'error' => $html->get_error_message()); }
+
+        $shots = alogweb_extract_screenshots($html);
+        if (empty($shots)) {
+            // A listing this parser cannot read is not a reason to throw away
+            // screenshots that are on the page and working today.
+            return array('status' => 'failed', 'error' => 'no screenshots recognised - left untouched');
+        }
+        if ((array) get_post_meta($post_id, '_screenshots', true) === $shots) {
+            return array('status' => 'unchanged', 'error' => '');
+        }
+        update_post_meta($post_id, '_screenshots', $shots);
+        return array('status' => 'updated', 'error' => '');
+    }
+
+    private function sweep_info($post_id) {
+        $store = $this->store_url_for($post_id);
+        if ($store === '') { return array('status' => 'skipped', 'error' => ''); }
+
+        $html = alogweb_fetch_play_html($store);
+        if (is_wp_error($html)) { return array('status' => 'failed', 'error' => $html->get_error_message()); }
+
+        $fresh = alogweb_extract_app_info($html);
+        if (empty($fresh)) { return array('status' => 'failed', 'error' => 'no metadata recognised - left untouched'); }
+
+        $existing = get_post_meta($post_id, '_info', true);
+        $merged = is_object($existing) ? clone $existing
+                : (object) (is_array($existing) ? $existing : array());
+
+        $changed = false;
+        foreach ($fresh as $field => $value) {
+            if (!isset($merged->$field) || (string) $merged->$field !== (string) $value) {
+                $merged->$field = $value;
+                $changed = true;
+            }
+        }
+        if (!$changed) { return array('status' => 'unchanged', 'error' => ''); }
+
+        update_post_meta($post_id, '_info', $merged);
+        // The rating and name columns used for sorting are derived from _info
+        // and would otherwise keep the values this sweep just replaced.
+        if (function_exists('alogweb_index_post')) { alogweb_index_post($post_id); }
+        return array('status' => 'updated', 'error' => '');
+    }
+
+    private function sweep_store_status($post_id) {
+        $store = $this->store_url_for($post_id);
+        if ($store === '') { return array('status' => 'skipped', 'error' => ''); }
+
+        $result = alogweb_play_status($store);
+        if (is_wp_error($result)) { return array('status' => 'failed', 'error' => $result->get_error_message()); }
+
+        $previous = (string) get_post_meta($post_id, self::STORE_STATUS_META, true);
+        update_post_meta($post_id, self::STORE_STATUS_META, $result);
+        update_post_meta($post_id, self::STORE_CHECKED_META, current_time('mysql'));
+
+        return array('status' => $previous === $result ? 'unchanged' : 'updated', 'error' => '');
+    }
+
+    public function delisted_posts() {
+        return get_posts(array(
+            'post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
+            'numberposts' => -1, 'fields' => 'ids', 'orderby' => 'title', 'order' => 'ASC',
+            'meta_query' => array(array('key' => self::STORE_STATUS_META, 'value' => 'gone')),
+        ));
+    }
+
+    public function cli_sweep($args, $assoc_args) {
+        $key = isset($args[0]) ? sanitize_key($args[0]) : '';
+        $def = $this->sweep_def($key);
+        if (!$def) { WP_CLI::error('Unknown sweep. Available: ' . implode(', ', array_keys($this->sweeps()))); }
+        if (!$this->sweep_ready($key)) { WP_CLI::error('The alogweb theme is not active, so there is no Google Play parser to call.'); }
+
+        if (isset($assoc_args['start'])) {
+            $ids = get_posts(array(
+                'post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
+                'numberposts' => -1, 'fields' => 'ids', 'orderby' => 'ID', 'order' => 'ASC',
+            ));
+            update_option($def['option'], array(
+                'status' => 'running', 'queue' => array_map('absint', $ids), 'total' => count($ids),
+                'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
+                'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+            ), false);
+            WP_CLI::log(sprintf('Queued %d posts for %s.', count($ids), $def['label']));
+        }
+
+        while ($this->sweep_job($key)['status'] === 'running') {
+            $this->process_sweep($key, false);
+            $job = $this->sweep_job($key);
+            WP_CLI::log(sprintf('%d/%d - %d updated, %d unchanged, %d skipped, %d failed',
+                $job['processed'], $job['total'], $job['updated'], $job['unchanged'], $job['skipped'], $job['failed']));
+        }
+        $job = $this->sweep_job($key);
+        WP_CLI::success(sprintf('%s: %d updated, %d unchanged, %d skipped, %d failed.',
+            $def['label'], $job['updated'], $job['unchanged'], $job['skipped'], $job['failed']));
     }
 
     public function process_batch($schedule_next = true) {

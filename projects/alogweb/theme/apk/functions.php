@@ -5,6 +5,7 @@
  * broke every wp_redirect() with "Cannot modify header information".
  */
 
+include 'inc/alogweb-play.php';
 include 'inc/class_games.php';
 include 'inc/alogweb-data.php';
 include 'inc/alogweb-index.php';
