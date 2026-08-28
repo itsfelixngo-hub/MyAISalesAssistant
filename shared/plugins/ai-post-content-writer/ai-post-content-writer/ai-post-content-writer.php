@@ -800,7 +800,8 @@ Requirements:
             if ($this->sweep_job($key)['status'] === 'running' && $this->sweep_ready($key)) {
                 $this->process_sweep($key, false);
                 $job = $this->sweep_job($key);
-                WP_CLI::log(sprintf('%s %d/%d', $key, $job['processed'], $job['total']));
+                WP_CLI::log(sprintf('%s %d/%d (%d delisted, %d failed)',
+                    $key, $job['processed'], $job['total'], $job['gone'], $job['failed']));
             }
         }
     }
@@ -830,12 +831,19 @@ Requirements:
             $this->process_sweep($key, false);
             if ($once) { break; }
             $job = $this->sweep_job($key);
-            WP_CLI::log(sprintf('%d/%d - %d updated, %d unchanged, %d skipped, %d failed',
-                $job['processed'], $job['total'], $job['updated'], $job['unchanged'], $job['skipped'], $job['failed']));
+            WP_CLI::log(sprintf('%d/%d - %d updated, %d unchanged, %d skipped, %d delisted, %d failed',
+                $job['processed'], $job['total'], $job['updated'], $job['unchanged'],
+                $job['skipped'], $job['gone'], $job['failed']));
         }
         $job = $this->sweep_job($key);
-        WP_CLI::success(sprintf('%s: %d updated, %d unchanged, %d skipped, %d failed.',
-            $def['label'], $job['updated'], $job['unchanged'], $job['skipped'], $job['failed']));
+        // Every bucket, so the numbers add up to the number of posts processed.
+        // Leaving 'delisted' out made a run of 97 report 80 and look like it had
+        // lost seventeen posts somewhere.
+        WP_CLI::success(sprintf('%s: %d updated, %d unchanged, %d skipped, %d delisted, %d failed (%d of %d).',
+            $def['label'], $job['updated'], $job['unchanged'], $job['skipped'],
+            $job['gone'], $job['failed'], $job['processed'], $job['total']));
+        if ($job['drafted'])  { WP_CLI::log(sprintf('Unpublished %d post(s) whose app is gone from Play.', $job['drafted'])); }
+        if ($job['restored']) { WP_CLI::log(sprintf('Republished %d post(s) whose app is back.', $job['restored'])); }
     }
 
     public function process_batch($schedule_next = true) {
