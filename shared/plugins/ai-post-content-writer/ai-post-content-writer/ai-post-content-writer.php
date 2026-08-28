@@ -24,6 +24,10 @@ final class AI_Post_Content_Writer {
     const SWEEP_BATCH_SIZE = 3;
     const STORE_STATUS_META = '_alogweb_store_status';
     const STORE_CHECKED_META = '_alogweb_store_checked';
+    // What the post was before a sweep unpublished it, so putting it back is a
+    // recorded decision rather than a guess - and so a sweep only ever restores
+    // posts it took down itself.
+    const PREVIOUS_STATUS_META = '_alogweb_previous_status';
 
     public function __construct() {
         add_action('admin_menu', array($this, 'admin_menu'));
@@ -240,7 +244,10 @@ Requirements:
                     <p class="aipcw-sweep-counts" style="<?php echo $sweep_job['processed'] ? '' : 'display:none;'; ?>">Updated: <?php echo esc_html($sweep_job['updated']); ?>,
                        Unchanged: <?php echo esc_html($sweep_job['unchanged']); ?>,
                        No store URL: <?php echo esc_html($sweep_job['skipped']); ?>,
-                       Failed: <?php echo esc_html($sweep_job['failed']); ?>.</p>
+                       Delisted: <?php echo esc_html($sweep_job['gone']); ?>,
+                       Failed: <?php echo esc_html($sweep_job['failed']); ?>.
+                       <?php if ($sweep_job['drafted']): ?><br>Unpublished <?php echo esc_html($sweep_job['drafted']); ?> post(s) whose app is gone from Play.<?php endif; ?>
+                       <?php if ($sweep_job['restored']): ?><br>Republished <?php echo esc_html($sweep_job['restored']); ?> post(s) whose app is back.<?php endif; ?></p>
                 <?php endif; ?>
                 <div class="notice notice-error inline aipcw-sweep-error" style="<?php echo $sweep_job['last_error'] ? '' : 'display:none;'; ?>"><p><?php echo esc_html($sweep_job['last_error']); ?></p></div>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:8px">
@@ -257,6 +264,15 @@ Requirements:
                         <?php wp_nonce_field('aipcw_stop_sweep'); ?>
                         <?php submit_button('Stop', 'secondary', 'submit', false); ?>
                     </form>
+                <?php endif; ?>
+                <?php if (!empty($sweep_job['gone_ids'])): ?>
+                    <p><strong>Delisted (<?php echo absint(count($sweep_job['gone_ids'])); ?>):</strong>
+                    <?php foreach (array_slice($sweep_job['gone_ids'], 0, 40) as $gone_id): ?>
+                        <a href="<?php echo esc_url(get_edit_post_link($gone_id)); ?>">#<?php echo absint($gone_id); ?></a>
+                    <?php endforeach; ?>
+                    <?php if (count($sweep_job['gone_ids']) > 40): ?> and <?php echo absint(count($sweep_job['gone_ids']) - 40); ?> more<?php endif; ?>
+                    <br><em>Removed from Google Play, so they were moved to Draft. Their screenshots and
+                    metadata are left as they are, and the sweep puts a post back if its app returns.</em></p>
                 <?php endif; ?>
                 <?php if (!empty($sweep_job['failed_ids'])): ?>
                     <p><strong>Failed:</strong>
@@ -288,7 +304,10 @@ Requirements:
                                 $box.find('.aipcw-sweep-progress').text(j.processed + '/' + j.total + ' (' + pct + '%)');
                                 $box.find('.aipcw-sweep-counts').show().text(
                                     'Updated: ' + j.updated + ', Unchanged: ' + j.unchanged +
-                                    ', No store URL: ' + j.skipped + ', Failed: ' + j.failed + '.');
+                                    ', No store URL: ' + j.skipped + ', Delisted: ' + (j.gone || 0) +
+                                    ', Failed: ' + j.failed + '.' +
+                                    (j.drafted ? ' Unpublished ' + j.drafted + '.' : '') +
+                                    (j.restored ? ' Republished ' + j.restored + '.' : ''));
                                 if (j.last_error) { $box.find('.aipcw-sweep-error').show().find('p').text(j.last_error); }
                                 else { $box.find('.aipcw-sweep-error').hide(); }
 
@@ -483,8 +502,9 @@ Requirements:
         if (!$def) { return array(); }
         return wp_parse_args(get_option($def['option'], array()), array(
             'status' => 'idle', 'queue' => array(), 'total' => 0, 'processed' => 0,
-            'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
-            'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+            'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'gone' => 0, 'failed' => 0,
+            'drafted' => 0, 'restored' => 0,
+            'failed_ids' => array(), 'gone_ids' => array(), 'last_error' => '', 'finished' => '',
         ));
     }
 
@@ -524,8 +544,9 @@ Requirements:
         ));
         update_option($def['option'], array(
             'status' => 'running', 'queue' => array_map('absint', $ids), 'total' => count($ids),
-            'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
-            'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+            'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'gone' => 0, 'failed' => 0,
+            'drafted' => 0, 'restored' => 0,
+            'failed_ids' => array(), 'gone_ids' => array(), 'last_error' => '', 'finished' => '',
         ), false);
         wp_schedule_single_event(time() + 1, $def['cron']);
         $this->redirect();
@@ -586,9 +607,13 @@ Requirements:
 
             $outcome = call_user_func(array($this, $def['method']), $post_id);
             $job[$outcome['status']]++;
+            if (!empty($outcome['drafted']))  { $job['drafted']++; }
+            if (!empty($outcome['restored'])) { $job['restored']++; }
             if ($outcome['status'] === 'failed') {
                 $job['failed_ids'][] = $post_id;
                 $job['last_error'] = sprintf('#%d: %s', $post_id, $outcome['error']);
+            } else if ($outcome['status'] === 'gone') {
+                $job['gone_ids'][] = $post_id;
             } else if ($outcome['status'] === 'updated') {
                 $job['last_error'] = '';
             }
@@ -605,12 +630,70 @@ Requirements:
         update_option($def['option'], $job, false);
     }
 
+    /**
+     * A listing that answers 404 is an app Google removed, which is an ordinary
+     * outcome for a directory of years-old APKs - not a malfunction. It is
+     * counted separately from failures, recorded so the delisted report stays
+     * current even when only one sweep has run, and the post is unpublished:
+     * a page whose download button leads to a Google 404 is worse than no page.
+     *
+     * Only a published post is touched, and its previous status is stored, so
+     * this is a door that opens both ways - see mark_available().
+     */
+    private function mark_gone($post_id) {
+        update_post_meta($post_id, self::STORE_STATUS_META, 'gone');
+        update_post_meta($post_id, self::STORE_CHECKED_META, current_time('mysql'));
+
+        $post = get_post($post_id);
+        if (!$post || $post->post_status !== 'publish') { return false; }
+
+        update_post_meta($post_id, self::PREVIOUS_STATUS_META, $post->post_status);
+        wp_update_post(array('ID' => $post_id, 'post_status' => 'draft'));
+        return true;
+    }
+
+    /**
+     * The app is back. Restore the post - but only if this plugin is the reason
+     * it is a draft. A post someone unpublished by hand has no stored previous
+     * status, and republishing it would be this code overruling a person.
+     */
+    private function mark_available($post_id) {
+        update_post_meta($post_id, self::STORE_STATUS_META, 'available');
+        update_post_meta($post_id, self::STORE_CHECKED_META, current_time('mysql'));
+
+        $previous = (string) get_post_meta($post_id, self::PREVIOUS_STATUS_META, true);
+        if ($previous === '') { return false; }
+
+        delete_post_meta($post_id, self::PREVIOUS_STATUS_META);
+        $post = get_post($post_id);
+        if (!$post || $post->post_status !== 'draft') { return false; }
+
+        wp_update_post(array('ID' => $post_id, 'post_status' => $previous));
+        return true;
+    }
+
+    /**
+     * Turn a fetch error into a 'gone' outcome when - and only when - Play
+     * answered 404. The status travels as WP_Error data rather than being read
+     * back out of the message, which would break the first time the wording
+     * changed. A timeout or a 5xx stays a failure: it says something about the
+     * network, not about the app.
+     */
+    private function outcome_if_gone($post_id, $error) {
+        $data = $error->get_error_data();
+        if (!is_array($data) || !isset($data['status']) || (int) $data['status'] !== 404) { return null; }
+        return array('status' => 'gone', 'error' => '', 'drafted' => $this->mark_gone($post_id));
+    }
+
     private function sweep_screenshots($post_id) {
         $store = $this->store_url_for($post_id);
         if ($store === '') { return array('status' => 'skipped', 'error' => ''); }
 
         $html = alogweb_fetch_play_html($store);
-        if (is_wp_error($html)) { return array('status' => 'failed', 'error' => $html->get_error_message()); }
+        if (is_wp_error($html)) {
+            $gone = $this->outcome_if_gone($post_id, $html);
+            return $gone ?: array('status' => 'failed', 'error' => $html->get_error_message());
+        }
 
         $shots = alogweb_extract_screenshots($html);
         if (empty($shots)) {
@@ -630,7 +713,10 @@ Requirements:
         if ($store === '') { return array('status' => 'skipped', 'error' => ''); }
 
         $html = alogweb_fetch_play_html($store);
-        if (is_wp_error($html)) { return array('status' => 'failed', 'error' => $html->get_error_message()); }
+        if (is_wp_error($html)) {
+            $gone = $this->outcome_if_gone($post_id, $html);
+            return $gone ?: array('status' => 'failed', 'error' => $html->get_error_message());
+        }
 
         $fresh = alogweb_extract_app_info($html);
         if (empty($fresh)) { return array('status' => 'failed', 'error' => 'no metadata recognised - left untouched'); }
@@ -663,10 +749,16 @@ Requirements:
         if (is_wp_error($result)) { return array('status' => 'failed', 'error' => $result->get_error_message()); }
 
         $previous = (string) get_post_meta($post_id, self::STORE_STATUS_META, true);
-        update_post_meta($post_id, self::STORE_STATUS_META, $result);
-        update_post_meta($post_id, self::STORE_CHECKED_META, current_time('mysql'));
+        if ($result === 'gone') {
+            return array('status' => 'gone', 'error' => '', 'drafted' => $this->mark_gone($post_id));
+        }
 
-        return array('status' => $previous === $result ? 'unchanged' : 'updated', 'error' => '');
+        $restored = $this->mark_available($post_id);
+        return array(
+            'status'   => ($previous === $result && !$restored) ? 'unchanged' : 'updated',
+            'error'    => '',
+            'restored' => $restored,
+        );
     }
 
     /**
@@ -726,8 +818,9 @@ Requirements:
             ));
             update_option($def['option'], array(
                 'status' => 'running', 'queue' => array_map('absint', $ids), 'total' => count($ids),
-                'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0,
-                'failed_ids' => array(), 'last_error' => '', 'finished' => '',
+                'processed' => 0, 'updated' => 0, 'unchanged' => 0, 'skipped' => 0, 'gone' => 0, 'failed' => 0,
+                'drafted' => 0, 'restored' => 0,
+                'failed_ids' => array(), 'gone_ids' => array(), 'last_error' => '', 'finished' => '',
             ), false);
             WP_CLI::log(sprintf('Queued %d posts for %s.', count($ids), $def['label']));
         }

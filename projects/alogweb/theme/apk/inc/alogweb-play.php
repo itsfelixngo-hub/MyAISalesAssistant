@@ -119,9 +119,13 @@ function alogweb_fetch_play_html($store_url) {
     ));
     if (is_wp_error($response)) { return $response; }
 
-    $code = wp_remote_retrieve_response_code($response);
+    $code = (int) wp_remote_retrieve_response_code($response);
     if ($code >= 400) {
-        return new WP_Error('alogweb_http', 'Google Play returned HTTP ' . $code);
+        // The status travels as error data, not just inside the message: a
+        // caller has to tell "this app was removed from the store" apart from
+        // "something went wrong", and parsing English out of a string to do it
+        // would break the first time the wording changed.
+        return new WP_Error('alogweb_http', 'Google Play returned HTTP ' . $code, array('status' => $code));
     }
     $body = wp_remote_retrieve_body($response);
     if ($body === '') { return new WP_Error('alogweb_empty', 'Google Play returned an empty response'); }
