@@ -37,6 +37,7 @@ final class AI_Post_Content_Writer {
         add_action('admin_post_aipcw_revert', array($this, 'revert_post'));
         add_action('wp_ajax_aipcw_status', array($this, 'ajax_status'));
         add_action(self::CRON, array($this, 'process_batch'));
+        add_action('wp_ajax_aipcw_sweep_tick', array($this, 'ajax_sweep_tick'));
         add_action('admin_post_aipcw_start_sweep', array($this, 'start_sweep'));
         add_action('admin_post_aipcw_stop_sweep', array($this, 'stop_sweep'));
         foreach ($this->sweeps() as $sweep_key => $sweep) {
@@ -45,6 +46,7 @@ final class AI_Post_Content_Writer {
         if (defined('WP_CLI') && WP_CLI) {
             WP_CLI::add_command('aipcw worker', array($this, 'cli_worker'));
             WP_CLI::add_command('aipcw sweep', array($this, 'cli_sweep'));
+            WP_CLI::add_command('aipcw tick', array($this, 'cli_tick'));
         }
     }
 
@@ -101,7 +103,11 @@ final class AI_Post_Content_Writer {
     public function render_page() {
         if (!current_user_can('edit_posts')) { wp_die('You do not have permission to use this page.'); }
         $job = $this->job();
-        $posts = get_posts(array('post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending'), 'numberposts' => 100));
+        // Capped, and the cap is stated in the markup below rather than
+        // silently swallowing the rest of the list.
+        $post_limit = 500;
+        $posts = get_posts(array('post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending'), 'numberposts' => $post_limit, 'orderby' => 'title', 'order' => 'ASC'));
+        $post_total = (int) wp_count_posts('post')->publish + (int) wp_count_posts('post')->draft + (int) wp_count_posts('post')->pending;
         $percent = $job['total'] ? min(100, round(($job['processed'] / $job['total']) * 100)) : 0;
 
         $test_result = isset($_GET['aipcw_test']) ? sanitize_key($_GET['aipcw_test']) : '';
@@ -123,7 +129,7 @@ final class AI_Post_Content_Writer {
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="aipcw_test_post" /><?php wp_nonce_field('aipcw_test_post'); ?>
                 <table class="form-table">
-                    <tr><th><label for="aipcw_test_source">Post</label></th><td><select id="aipcw_test_source" name="source_id" required><option value="">Select one post</option><?php foreach ($posts as $post): ?><option value="<?php echo esc_attr($post->ID); ?>"><?php echo esc_html($post->post_title ?: '(Untitled)'); ?></option><?php endforeach; ?></select></td></tr>
+                    <tr><th><label for="aipcw_test_source">Post</label></th><td><input type="search" id="aipcw_test_filter" class="regular-text" placeholder="Type to filter by title" autocomplete="off" style="margin-bottom:6px;display:block"><select id="aipcw_test_source" name="source_id" required size="1"><option value="">Select one post</option><?php foreach ($posts as $post): ?><option value="<?php echo esc_attr($post->ID); ?>"><?php echo esc_html($post->post_title ?: '(Untitled)'); ?></option><?php endforeach; ?></select><p class="description" id="aipcw_test_count"><?php echo absint(count($posts)); ?> post(s)<?php if ($post_total > count($posts)): ?> &mdash; showing the first <?php echo absint($post_limit); ?> of <?php echo absint($post_total); ?><?php endif; ?></p></td></tr>
                     <tr><th><label for="aipcw_test_mode">Mode</label></th><td><select id="aipcw_test_mode" name="mode"><option value="draft">Create draft</option><option value="update">Update current post (revert available)</option></select></td></tr>
                     <tr><th><label for="aipcw_test_instruction">Instruction</label></th><td><textarea id="aipcw_test_instruction" name="instruction" rows="12" class="large-text" required>Rewrite the original post into a completely original, natural, and useful SEO-friendly article in English.
 
@@ -162,7 +168,58 @@ Requirements:
             <?php if (!empty($job['updated_ids'])): ?><h2>Updated posts — revert</h2><ul><?php foreach ($job['updated_ids'] as $updated_id): $updated_post = get_post($updated_id); if (!$updated_post) { continue; } ?><li><a href="<?php echo esc_url(get_edit_post_link($updated_id)); ?>"><?php echo esc_html($updated_post->post_title); ?></a> <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><input type="hidden" name="action" value="aipcw_revert" /><input type="hidden" name="post_id" value="<?php echo esc_attr($updated_id); ?>" /><?php wp_nonce_field('aipcw_revert_' . $updated_id); ?><button type="submit" class="button-link">Revert latest AI change</button></form></li><?php endforeach; ?></ul><?php endif; ?>
             <?php if (!empty($job['created_ids'])): ?><h2>Created drafts</h2><ul><?php foreach ($job['created_ids'] as $created_id): $created_post = get_post($created_id); if (!$created_post) { continue; } ?><li><a href="<?php echo esc_url(get_edit_post_link($created_id)); ?>"><?php echo esc_html($created_post->post_title); ?></a></li><?php endforeach; ?></ul><?php endif; ?>
             <h2>Backup history</h2>
-            <?php if (empty($backup_posts)): ?><p>No backups available yet. Run a test or scan in update mode first.</p><?php else: ?><table class="widefat striped"><thead><tr><th>Post</th><th>Versions</th><th>Latest backup</th><th>Actions</th></tr></thead><tbody><?php foreach ($backup_posts as $backup_post): $history = get_post_meta($backup_post->ID, self::BACKUP_META, true); $count = is_array($history) ? count($history) : 0; $latest = $count ? $history[$count - 1] : array(); ?><tr><td><a href="<?php echo esc_url(get_edit_post_link($backup_post->ID)); ?>"><?php echo esc_html($backup_post->post_title ?: '(Untitled)'); ?></a></td><td><?php echo esc_html($count); ?></td><td><?php echo esc_html(isset($latest['time']) ? $latest['time'] : ''); ?></td><td><a class="button" href="<?php echo esc_url(add_query_arg(array('page' => 'ai-post-content-writer', 'aipcw_backup_preview' => $backup_post->ID), admin_url('admin.php'))); ?>">View latest backup</a> <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><input type="hidden" name="action" value="aipcw_revert" /><input type="hidden" name="post_id" value="<?php echo esc_attr($backup_post->ID); ?>" /><?php wp_nonce_field('aipcw_revert_' . $backup_post->ID); ?><button type="submit" class="button">Revert latest</button></form></td></tr><?php endforeach; ?></tbody></table><?php endif; ?>
+            <?php if (empty($backup_posts)): ?><p>No backups available yet. Run a test or scan in update mode first.</p><?php else: ?><table class="widefat striped"><thead><tr><th>Post</th><th>Versions</th><th>Latest backup</th><th>Actions</th></tr></thead><tbody><?php $backup_row = 0; foreach ($backup_posts as $backup_post): $history = get_post_meta($backup_post->ID, self::BACKUP_META, true); $count = is_array($history) ? count($history) : 0; $latest = $count ? $history[$count - 1] : array(); ?><tr class="aipcw-backup-row<?php echo $backup_row++ >= 10 ? ' aipcw-more' : ''; ?>"><td><a href="<?php echo esc_url(get_edit_post_link($backup_post->ID)); ?>"><?php echo esc_html($backup_post->post_title ?: '(Untitled)'); ?></a></td><td><?php echo esc_html($count); ?></td><td><?php echo esc_html(isset($latest['time']) ? $latest['time'] : ''); ?></td><td><a class="button" href="<?php echo esc_url(add_query_arg(array('page' => 'ai-post-content-writer', 'aipcw_backup_preview' => $backup_post->ID), admin_url('admin.php'))); ?>">View latest backup</a> <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><input type="hidden" name="action" value="aipcw_revert" /><input type="hidden" name="post_id" value="<?php echo esc_attr($backup_post->ID); ?>" /><?php wp_nonce_field('aipcw_revert_' . $backup_post->ID); ?><button type="submit" class="button">Revert latest</button></form></td></tr><?php endforeach; ?></tbody></table><p id="aipcw-backup-more-wrap" style="display:none"><button type="button" class="button" id="aipcw-backup-more"></button> <button type="button" class="button-link" id="aipcw-backup-all">Show all</button></p><?php endif; ?>
+            <script type="text/javascript">
+            (function ($) {
+                // Both features are progressive: the select is fully populated
+                // and every backup row is present in the markup, so with no
+                // JavaScript the page behaves exactly as it did before.
+                $(function () {
+                    var $select = $('#aipcw_test_source');
+                    if ($select.length) {
+                        var all = $select.find('option').toArray(),
+                            $count = $('#aipcw_test_count'),
+                            baseText = $count.text();
+                        $('#aipcw_test_filter').on('input', function () {
+                            var q = $.trim(this.value).toLowerCase();
+                            var keep = all.filter(function (o) {
+                                return !o.value || o.text.toLowerCase().indexOf(q) !== -1;
+                            });
+                            $select.empty().append(keep);
+                            // The blank placeholder is not a result.
+                            var hits = keep.length - 1;
+                            $count.text(q ? hits + ' match(es)' : baseText);
+                            // One hit and the choice is unambiguous - preselect
+                            // it so the next click is the Run button.
+                            $select.val(hits === 1 ? keep[keep.length - 1].value : '');
+                        });
+                    }
+
+                    var $rows = $('.aipcw-backup-row.aipcw-more');
+                    if ($rows.length) {
+                        var step = 10, shown = 0;
+                        $rows.hide();
+                        $('#aipcw-backup-more-wrap').show();
+                        var render = function () {
+                            var left = $rows.length - shown;
+                            if (left <= 0) { $('#aipcw-backup-more-wrap').hide(); return; }
+                            $('#aipcw-backup-more').text('Show ' + Math.min(step, left) + ' more (' + left + ' hidden)');
+                        };
+                        $('#aipcw-backup-more').on('click', function () {
+                            $rows.slice(shown, shown + step).show();
+                            shown += step;
+                            render();
+                        });
+                        $('#aipcw-backup-all').on('click', function () {
+                            $rows.show();
+                            shown = $rows.length;
+                            render();
+                        });
+                        render();
+                    }
+                });
+            })(jQuery);
+            </script>
             <hr />
             <h2>Store maintenance</h2>
             <?php foreach ($this->sweeps() as $sweep_key => $sweep):
@@ -170,23 +227,22 @@ Requirements:
                 $sweep_pct = $sweep_job['total'] ? min(100, round(($sweep_job['processed'] / $sweep_job['total']) * 100)) : 0;
                 $sweep_running = $sweep_job['status'] === 'running';
             ?>
+                <div class="aipcw-sweep" data-sweep="<?php echo esc_attr($sweep_key); ?>">
                 <h3><?php echo esc_html($sweep['label']); ?></h3>
                 <p><?php echo wp_kses($sweep['blurb'], array('strong' => array())); ?></p>
                 <?php if (!$this->sweep_ready($sweep_key)): ?>
                     <div class="notice notice-warning inline"><p>The alogweb theme is not active, so there is no Google Play parser to call.</p></div>
                 <?php endif; ?>
-                <p><strong>Status:</strong> <?php echo esc_html($sweep_job['status']); ?> &nbsp;
-                   <strong>Progress:</strong> <?php echo esc_html($sweep_job['processed'] . '/' . $sweep_job['total'] . ' (' . $sweep_pct . '%)'); ?>
+                <p><strong>Status:</strong> <span class="aipcw-sweep-status"><?php echo esc_html($sweep_job['status']); ?></span> &nbsp;
+                   <strong>Progress:</strong> <span class="aipcw-sweep-progress"><?php echo esc_html($sweep_job['processed'] . '/' . $sweep_job['total'] . ' (' . $sweep_pct . '%)'); ?></span>
                    <?php if ($sweep_job['finished']): ?> &nbsp; <em>last finished <?php echo esc_html($sweep_job['finished']); ?></em><?php endif; ?></p>
-                <?php if ($sweep_job['processed']): ?>
-                    <p>Updated: <?php echo esc_html($sweep_job['updated']); ?>,
+                <?php if (true): ?>
+                    <p class="aipcw-sweep-counts" style="<?php echo $sweep_job['processed'] ? '' : 'display:none;'; ?>">Updated: <?php echo esc_html($sweep_job['updated']); ?>,
                        Unchanged: <?php echo esc_html($sweep_job['unchanged']); ?>,
                        No store URL: <?php echo esc_html($sweep_job['skipped']); ?>,
                        Failed: <?php echo esc_html($sweep_job['failed']); ?>.</p>
                 <?php endif; ?>
-                <?php if ($sweep_job['last_error']): ?>
-                    <div class="notice notice-error inline"><p><?php echo esc_html($sweep_job['last_error']); ?></p></div>
-                <?php endif; ?>
+                <div class="notice notice-error inline aipcw-sweep-error" style="<?php echo $sweep_job['last_error'] ? '' : 'display:none;'; ?>"><p><?php echo esc_html($sweep_job['last_error']); ?></p></div>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block;margin-right:8px">
                     <input type="hidden" name="action" value="aipcw_start_sweep" />
                     <input type="hidden" name="sweep" value="<?php echo esc_attr($sweep_key); ?>" />
@@ -209,7 +265,41 @@ Requirements:
                     <?php endforeach; ?>
                     <?php if (count($sweep_job['failed_ids']) > 40): ?> and <?php echo absint(count($sweep_job['failed_ids']) - 40); ?> more<?php endif; ?></p>
                 <?php endif; ?>
+                </div>
             <?php endforeach; ?>
+            <script type="text/javascript">
+            (function ($) {
+                var nonce = <?php echo wp_json_encode(wp_create_nonce('aipcw_sweep_tick')); ?>;
+                // One request at a time per sweep, and the next only after the
+                // previous answered - a fixed interval would pile up requests
+                // whenever a batch takes longer than the interval, which three
+                // Play fetches routinely do.
+                $('.aipcw-sweep').each(function () {
+                    var $box = $(this), key = $box.data('sweep');
+                    if ($.trim($box.find('.aipcw-sweep-status').text()) !== 'running') { return; }
+
+                    (function tick() {
+                        $.post(ajaxurl, { action: 'aipcw_sweep_tick', sweep: key, nonce: nonce })
+                            .done(function (res) {
+                                if (!res || !res.success) { return; }
+                                var j = res.data,
+                                    pct = j.total ? Math.min(100, Math.round((j.processed / j.total) * 100)) : 0;
+                                $box.find('.aipcw-sweep-status').text(j.status);
+                                $box.find('.aipcw-sweep-progress').text(j.processed + '/' + j.total + ' (' + pct + '%)');
+                                $box.find('.aipcw-sweep-counts').show().text(
+                                    'Updated: ' + j.updated + ', Unchanged: ' + j.unchanged +
+                                    ', No store URL: ' + j.skipped + ', Failed: ' + j.failed + '.');
+                                if (j.last_error) { $box.find('.aipcw-sweep-error').show().find('p').text(j.last_error); }
+                                else { $box.find('.aipcw-sweep-error').hide(); }
+
+                                if (j.status === 'running') { setTimeout(tick, 1200); }
+                                else { window.location.reload(); }
+                            })
+                            .fail(function () { setTimeout(tick, 5000); });
+                    })();
+                });
+            })(jQuery);
+            </script>
 
             <h3>Apps no longer on Google Play</h3>
             <?php $gone = $this->delisted_posts(); ?>
@@ -454,9 +544,29 @@ Requirements:
         $this->redirect();
     }
 
+    /**
+     * One batch, guarded.
+     *
+     * Two admin tabs polling the same sweep would otherwise each splice items
+     * off the queue and process them concurrently. The work is idempotent, so
+     * the damage is wasted fetches rather than corruption, but a short lock
+     * costs nothing and keeps the counters honest.
+     */
     public function process_sweep($key, $schedule_next = true) {
         $def = $this->sweep_def($key);
         if (!$def) { return; }
+
+        $lock = $def['option'] . '_lock';
+        if (get_transient($lock)) { return; }
+        set_transient($lock, 1, 120);
+        try {
+            $this->run_sweep_batch($key, $def, $schedule_next);
+        } finally {
+            delete_transient($lock);
+        }
+    }
+
+    private function run_sweep_batch($key, $def, $schedule_next) {
         $job = $this->sweep_job($key);
         if ($job['status'] !== 'running') { return; }
 
@@ -559,12 +669,48 @@ Requirements:
         return array('status' => $previous === $result ? 'unchanged' : 'updated', 'error' => '');
     }
 
+    /**
+     * The browser is the clock.
+     *
+     * WP-Cron is switched off in this stack (DISABLE_WP_CRON), so a scheduled
+     * event never fires on its own and a sweep left to the cron hook sits at 0%
+     * forever. Ticking from the open admin page means starting a sweep does
+     * something visible immediately, with no hidden container to remember.
+     * The worker service still exists for unattended runs.
+     */
+    public function ajax_sweep_tick() {
+        if (!current_user_can('edit_posts')) { wp_send_json_error('Permission denied.', 403); }
+        check_ajax_referer('aipcw_sweep_tick', 'nonce');
+        $key = isset($_POST['sweep']) ? sanitize_key($_POST['sweep']) : '';
+        if (!$this->sweep_def($key)) { wp_send_json_error('Unknown sweep.', 400); }
+
+        $this->process_sweep($key, false);
+        $job = $this->sweep_job($key);
+        unset($job['queue']);
+        wp_send_json_success($job);
+    }
+
     public function delisted_posts() {
         return get_posts(array(
             'post_type' => 'post', 'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
             'numberposts' => -1, 'fields' => 'ids', 'orderby' => 'title', 'order' => 'ASC',
             'meta_query' => array(array('key' => self::STORE_STATUS_META, 'value' => 'gone')),
         ));
+    }
+
+    /**
+     * One batch of every job that is running. What the worker container loops
+     * on, so a new sweep does not need the container's command changed.
+     */
+    public function cli_tick() {
+        if ($this->job()['status'] === 'running') { $this->process_batch(false); }
+        foreach (array_keys($this->sweeps()) as $key) {
+            if ($this->sweep_job($key)['status'] === 'running' && $this->sweep_ready($key)) {
+                $this->process_sweep($key, false);
+                $job = $this->sweep_job($key);
+                WP_CLI::log(sprintf('%s %d/%d', $key, $job['processed'], $job['total']));
+            }
+        }
     }
 
     public function cli_sweep($args, $assoc_args) {
@@ -586,8 +732,10 @@ Requirements:
             WP_CLI::log(sprintf('Queued %d posts for %s.', count($ids), $def['label']));
         }
 
+        $once = isset($assoc_args['once']);
         while ($this->sweep_job($key)['status'] === 'running') {
             $this->process_sweep($key, false);
+            if ($once) { break; }
             $job = $this->sweep_job($key);
             WP_CLI::log(sprintf('%d/%d - %d updated, %d unchanged, %d skipped, %d failed',
                 $job['processed'], $job['total'], $job['updated'], $job['unchanged'], $job['skipped'], $job['failed']));
