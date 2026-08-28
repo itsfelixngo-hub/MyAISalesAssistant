@@ -175,9 +175,11 @@ services:
     networks:
       - alogweb_net
 
-  # Drives the AI plugin queue. start_scan() only flags the job as running and
-  # never schedules the cron event, so without this worker the progress bar
-  # stays at 0%. Off by default; start it with:
+  # Drives every queue in the AI plugin - content generation and the store
+  # maintenance sweeps. Starting a job only flags it as running and schedules a
+  # cron event, and DISABLE_WP_CRON above means that event never fires, so
+  # something has to tick the queue. The admin page does it from the browser
+  # while it is open; this container is for runs left unattended.
   #   docker compose --profile worker up -d alogweb-worker
   alogweb-worker:
     image: wordpress:cli-php8.1
@@ -196,7 +198,7 @@ services:
       - wordpress_data:/var/www/html
       - ../../shared/plugins/ai-post-content-writer:/var/www/html/wp-content/plugins/my-ai-sales-assistant
       - ./theme/apk:/var/www/html/wp-content/themes/apk
-    command: sh -c "while true; do wp aipcw worker --path=/var/www/html --once || true; sleep 5; done"
+    command: sh -c "while true; do wp aipcw tick --path=/var/www/html || true; sleep 5; done"
     networks:
       - alogweb_net
 
