@@ -40,23 +40,35 @@ dc up -d
 wait_healthy alogweb-wordpress 90
 wait_healthy alogweb-nginx 60
 
-# nginx holds its configuration in memory and the conf files are bind mounts,
-# so `up -d` leaves the previous rules running whenever compose sees no reason
-# to recreate this container - which is every deploy that only edits nginx conf.
-# The result is a deploy that reports success while the web layer is unchanged.
+# The nginx conf files are bind mounted one file at a time, and a single-file
+# bind mount is resolved to an inode when the container starts. rsync does not
+# rewrite a file in place - it writes a temporary copy and renames it over the
+# original - so every deploy hands the host a brand new inode while the running
+# container keeps reading the one it opened at boot. `nginx -s reload` then
+# re-reads that same stale copy and reports success, and `nginx -t` validates
+# it too, so nothing anywhere looks wrong. Directory mounts like ./theme/apk do
+# not have this problem, which is why theme changes have always landed while
+# every nginx change since the first deploy silently did not.
 #
-# Test before reloading. nginx refuses a reload it cannot parse and keeps
-# serving the old config, so a bad commit degrades to "not applied" rather than
-# taking the site down the way a restart would.
-log "Reloading nginx configuration"
-# Captured, not piped: a pipeline reports the exit status of its last command,
-# so `nginx -t | sed` would always look successful no matter what nginx said.
-if ! nginx_test="$(dc exec -T alogweb-nginx nginx -t 2>&1)"; then
-    printf '%s\n' "$nginx_test" | sed 's/^/    /' >&2
-    die "nginx rejected the new configuration - the running config was left in place"
+# Recreating the container is the only thing that re-resolves the mount.
+log "Applying nginx configuration"
+host_conf="$(md5sum "$PROJECT_DIR/nginx/default.conf" | awk '{print $1}')"
+live_conf="$(dc exec -T alogweb-nginx md5sum /etc/nginx/conf.d/default.conf 2>/dev/null | awk '{print $1}')"
+
+if [ "$host_conf" = "$live_conf" ]; then
+    log "nginx configuration is already current"
+else
+    # Validate the new configuration in a throwaway container that mounts it
+    # fresh - the running one cannot see it, so `nginx -t` there proves nothing.
+    # --no-deps keeps this from starting the rest of the stack.
+    if ! conf_test="$(dc run --rm --no-deps -T alogweb-nginx nginx -t 2>&1)"; then
+        printf '%s\n' "$conf_test" | sed 's/^/    /' >&2
+        die "nginx rejected the new configuration - the running container was left alone"
+    fi
+    printf '%s\n' "$conf_test" | sed 's/^/    /'
+    dc up -d --force-recreate alogweb-nginx
+    wait_healthy alogweb-nginx 60
 fi
-printf '%s\n' "$nginx_test" | sed 's/^/    /'
-dc exec -T alogweb-nginx nginx -s reload
 
 # A dump taken from an older WordPress leaves db_version behind the core
 # version, and WordPress then redirects every admin to upgrade.php until the
