@@ -30,6 +30,12 @@ x-wordpress-env: &wordpress-env
     # The measurement beacon. Injected only on public front-end views, never
     # on wp-admin and never for a logged-in user - see
     # theme/apk/inc/alogweb-analytics.php. All empty means no beacon.
+    # Cloudflare cache purge, from Tools -> Purge cache. Kept in the
+    # environment rather than wp_options: a token in the database ends up
+    # in every dump and every backup. Needs one permission on the token:
+    # Zone -> Cache Purge -> Purge.
+    CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+    CLOUDFLARE_ZONE_ID: ${CLOUDFLARE_ZONE_ID:-}
     ALOGWEB_CF_BEACON_TOKEN: ${ALOGWEB_CF_BEACON_TOKEN:-}
     ALOGWEB_GA_MEASUREMENT_ID: ${ALOGWEB_GA_MEASUREMENT_ID:-}
     ALOGWEB_ANALYTICS_HTML_B64: ${ALOGWEB_ANALYTICS_HTML_B64:-}
