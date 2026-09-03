@@ -826,6 +826,23 @@ Requirements:
             WP_CLI::log(sprintf('Queued %d posts for %s.', count($ids), $def['label']));
         }
 
+        // Without --start on a job that already finished, the loop below never
+        // runs and the summary at the end prints the previous run's counters -
+        // in under a second, with no fetches - which reads exactly like a fresh
+        // sweep that happened to change nothing. Say what this is instead.
+        $status = $this->sweep_job($key)['status'];
+        if ($status !== 'running' && !isset($assoc_args['start'])) {
+            $job = $this->sweep_job($key);
+            WP_CLI::warning(sprintf('%s is "%s" - no queue to work through, nothing was fetched.', $def['label'], $status));
+            if ($job['total']) {
+                WP_CLI::log(sprintf('Last run: %d updated, %d unchanged, %d skipped, %d delisted, %d failed (%d of %d)%s.',
+                    $job['updated'], $job['unchanged'], $job['skipped'], $job['gone'], $job['failed'],
+                    $job['processed'], $job['total'], $job['finished'] ? ', finished ' . $job['finished'] : ''));
+            }
+            WP_CLI::log('Run again with --start to sweep every post.');
+            return;
+        }
+
         $once = isset($assoc_args['once']);
         while ($this->sweep_job($key)['status'] === 'running') {
             $this->process_sweep($key, false);

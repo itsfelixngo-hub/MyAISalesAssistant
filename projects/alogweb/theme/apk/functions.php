@@ -15,6 +15,7 @@ include 'inc/alogweb-migration.php';
 include 'inc/alogweb-contact.php';
 include 'inc/alogweb-hardening.php';
 include 'inc/alogweb-analytics.php';
+include 'inc/alogweb-ads.php';
 // include 'inc/class_yoast_seo.php';
 /*
  * Theme setup must run on after_setup_theme. Calling __() while this file is
@@ -534,33 +535,6 @@ if(is_user_logged_in() ){
 //     return $permalink;
 // }
 // add_filter( 'post_link', 'rudr_post_permalink' );
-if(!function_exists("ads_head")):
-    function ads_head(){
-        $ads_head = "";
-        $ads_head .= '<center>';
-        $ads_head .= '';
-        $ads_head .= '</center>';
-        echo $ads_head;
-    }
-endif;
-if(!function_exists("ads_footer")):
-    function ads_footer(){
-        $ads_footer = "";
-        $ads_footer .= '<center>';
-        $ads_footer .= '';
-        $ads_footer .= '</center>';
-        echo $ads_footer;
-    }
-endif;
-if(!function_exists("ads_single")):
-    function ads_single(){
-        $ads_single = "";
-        $ads_single .= '<center>';
-        $ads_single .= '';
-        $ads_single .= '</center>';
-        echo $ads_single;
-    }
-endif;
 
 /**
  * The host that fronts the screenshot proxy, or '' when there is not one.
