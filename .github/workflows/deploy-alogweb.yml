@@ -134,11 +134,39 @@ jobs:
           CONTACT_SMTP_HOST:          ${{ vars.ALOGWEB_SMTP_HOST }}
           CONTACT_SMTP_PORT:          ${{ vars.ALOGWEB_SMTP_PORT }}
           CONTACT_SMTP_USE_TLS:       ${{ vars.ALOGWEB_SMTP_USE_TLS }}
+          CONTACT_SMTP_TLS_VERIFY:    ${{ vars.ALOGWEB_SMTP_TLS_VERIFY }}
+          CONTACT_RATE_LIMIT_SECONDS: ${{ vars.ALOGWEB_CONTACT_RATE_LIMIT_SECONDS }}
+          CONTACT_MIN_SUBMIT_SECONDS: ${{ vars.ALOGWEB_CONTACT_MIN_SUBMIT_SECONDS }}
+          CONTACT_ROTATION_TOLERANCE: ${{ vars.ALOGWEB_CONTACT_ROTATION_TOLERANCE }}
+          # Optional features. Blank is a valid answer and means the feature stays
+          # off; write-env.sh substitutes its own default for anything empty, so
+          # listing a variable here can never break a default.
+          ALOGWEB_STATIC_HOST:        ${{ vars.ALOGWEB_STATIC_HOST }}
+          ALOGWEB_CF_BEACON_TOKEN:    ${{ vars.ALOGWEB_CF_BEACON_TOKEN }}
+          ALOGWEB_GA_MEASUREMENT_ID:  ${{ vars.ALOGWEB_GA_MEASUREMENT_ID }}
+          ALOGWEB_ANALYTICS_HTML_B64: ${{ vars.ALOGWEB_ANALYTICS_HTML_B64 }}
+          # A zone id is not sensitive, so take one from either place rather than
+          # making it matter which was picked.
+          CLOUDFLARE_ZONE_ID:         ${{ secrets.CLOUDFLARE_ZONE_ID || vars.ALOGWEB_CLOUDFLARE_ZONE_ID }}
+          # Infrastructure. All of these have defaults in write-env.sh; they are
+          # here so a value can be changed without editing the repository.
+          HTTPS_BIND_ADDRESS:         ${{ vars.ALOGWEB_HTTPS_BIND_ADDRESS }}
+          MYSQL_BIND_ADDRESS:         ${{ vars.ALOGWEB_MYSQL_BIND_ADDRESS }}
+          DISABLE_WP_CRON:            ${{ vars.ALOGWEB_DISABLE_WP_CRON }}
+          ALOGWEB_WP_IMAGE:           ${{ vars.ALOGWEB_WP_IMAGE }}
+          ALOGWEB_WPCLI_IMAGE:        ${{ vars.ALOGWEB_WPCLI_IMAGE }}
+          ALOGWEB_BACKUP_KEEP_DAYS:   ${{ vars.ALOGWEB_BACKUP_KEEP_DAYS }}
+          COMPOSE_PROJECT_NAME:       ${{ vars.ALOGWEB_COMPOSE_PROJECT_NAME }}
+          ALOGWEB_NGINX_LOG_VOLUME:        ${{ vars.ALOGWEB_NGINX_LOG_VOLUME }}
+          ALOGWEB_NGINX_CACHE_VOLUME:      ${{ vars.ALOGWEB_NGINX_CACHE_VOLUME }}
+          ALOGWEB_NGINX_PAGE_CACHE_VOLUME: ${{ vars.ALOGWEB_NGINX_PAGE_CACHE_VOLUME }}
+          ALOGWEB_CERTBOT_WEBROOT_VOLUME:  ${{ vars.ALOGWEB_CERTBOT_WEBROOT_VOLUME }}
           # Secrets
           MYSQL_PASSWORD:             ${{ secrets.ALOGWEB_MYSQL_PASSWORD }}
           MYSQL_ROOT_PASSWORD:        ${{ secrets.ALOGWEB_MYSQL_ROOT_PASSWORD }}
           CONTACT_SMTP_USER:          ${{ secrets.ALOGWEB_SMTP_USER }}
           CONTACT_SMTP_PASSWORD:      ${{ secrets.ALOGWEB_SMTP_PASSWORD }}
+          CLOUDFLARE_API_TOKEN:       ${{ secrets.CLOUDFLARE_API_TOKEN }}
           ALOGWEB_ENV_FILE:           ${{ env.PROJECT_DIR }}/.env
         run: |
           set -euo pipefail
