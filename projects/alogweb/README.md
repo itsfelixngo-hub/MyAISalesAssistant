@@ -514,6 +514,40 @@ xoá được khi lưu bài — vì vậy có script purge:
 nội dung. Người đang đăng nhập luôn thấy bản mới nhất nên chỉ khách vãng lai bị
 ảnh hưởng.
 
+## Chặn truy cập theo quốc gia (Cloudflare)
+
+`scripts/cf-geoblock.sh` ghi **một** WAF custom rule vào zone và tìm lại nó bằng
+description `alogweb geo-block`, nên chạy `on` nhiều lần chỉ sửa đúng rule đó,
+không đẻ thêm rule mới. Rule tạo tay trên dashboard không bị đụng tới.
+
+```bash
+./scripts/cf-geoblock.sh                 # xem rule hiện tại
+./scripts/cf-geoblock.sh on              # chặn Việt Nam
+./scripts/cf-geoblock.sh on --countries VN,CN
+./scripts/cf-geoblock.sh on --action managed_challenge   # bắt giải captcha thay vì chặn
+./scripts/cf-geoblock.sh on --allow-ip 1.2.3.4           # trừ IP nhà/văn phòng
+./scripts/cf-geoblock.sh off             # giữ rule, ngừng áp dụng
+./scripts/cf-geoblock.sh remove          # xoá hẳn rule
+./scripts/cf-geoblock.sh on --dry-run    # chỉ in expression, không gọi API
+```
+
+**wp-admin không bị chặn.** Rule luôn chừa `/wp-admin`, `/wp-login.php`,
+`/wp-json`, `/wp-includes/`, `/wp-content/`, `/wp-cron.php` — vì màn hình admin
+không tự đủ: block editor gọi `/wp-json`, còn trang login và wp-admin nạp CSS/JS
+từ `/wp-includes` và `/wp-content`. Chặn luôn mấy đường đó thì admin ra HTML
+trần và không lưu được bài. Đổi danh sách ở biến `ALLOW_PATHS` đầu script.
+
+Đánh đổi: khách trong nước vẫn tải được ảnh hay CSS nếu biết URL trực tiếp. Cái
+bị chặn là trang, feed, sitemap và tìm kiếm — tức là site theo nghĩa người đọc.
+
+`CLOUDFLARE_API_TOKEN` cần quyền **Zone / WAF / Edit**. Token chỉ dùng purge
+cache không đủ; Cloudflare trả về "Actor does not have permission" và script in
+nguyên câu đó ra.
+
+Hai giới hạn cần biết trước khi tin vào rule này: người dùng VN qua VPN sẽ được
+tính theo IP thoát của VPN, và ai biết IP thật của VPS vẫn vào thẳng được —
+geo-block chỉ áp dụng cho lưu lượng đi qua Cloudflare.
+
 ## Hiệu năng
 
 `php/www.conf` nâng `pm.max_children` từ 5 (mặc định của image) lên 16. Ước lượng:
