@@ -693,6 +693,67 @@ Chuyển các bài trả đúng HTTP 404 vào Trash (chỉ chạy sau khi đã x
 Bài bị chuyển Trash không còn nằm trong danh sách public và không vào sitemap,
 có thể Restore lại từ WordPress Trash. Chỉ HTTP `404` mới bị chuyển Trash.
 
+## Sửa slug dính `u0026`
+
+Chuỗi ld+json Google Play trả về ghi `&` thành `&`. Trước bản vá,
+`save_post_callback()` unslash hai lần — một lần thủ công, một lần nữa bên trong
+`update_post_meta()` — nên backslash bị ăn mất và `u0026` lọt vào database. Với
+những app có `&` trong tên, chuỗi hỏng đó đi thẳng vào slug:
+
+```
+/google-chrome-fast-u0026-secure.html
+/maps-navigate-u0026-explore.html
+```
+
+Đường ghi dữ liệu đã sửa, nhưng bài viết trước đó vẫn hỏng cho tới khi có thứ
+ghi đè lên. Xem trước, không ghi gì:
+
+```bash
+./scripts/wp.sh alogweb fix-slugs
+./scripts/wp.sh alogweb fix-slugs --apply
+```
+
+Lệnh giải mã escape về ký tự gốc rồi để `sanitize_title()` sinh slug — kết quả
+là slug mà bài lẽ ra đã có từ đầu (`&` biến mất chứ không thành `and`).
+
+URL cũ **không chết**. Đổi `post_name` qua `wp_update_post()` khiến core ghi
+slug cũ vào `_wp_old_slug`, và `wp_old_slug_redirect()` tự 301 sang slug mới.
+Không phải viết redirect nào bằng tay.
+
+## Audit nội dung mỏng
+
+`wp aipcw audit-content` lọc các bài đã publish để tìm bài không đủ sức mang
+quảng cáo. Bốn dấu hiệu, đều là thứ máy khẳng định được:
+
+| Cờ | Nghĩa |
+|---|---|
+| `empty` | `post_content` không có chữ nào |
+| `thin:<n>w` | dưới ngưỡng từ (mặc định 400) |
+| `duplicate-of:<id>` | trùng khít bài khác sau khi chuẩn hoá khoảng trắng |
+| `escape-artifact` | còn `u0026` và tương tự trong tiêu đề hoặc nội dung |
+
+```bash
+./scripts/wp.sh aipcw audit-content                  # báo cáo, không ghi gì
+./scripts/wp.sh aipcw audit-content --min-words=500
+./scripts/wp.sh aipcw audit-content --draft          # chuyển bài bị gắn cờ về draft
+./scripts/wp.sh aipcw audit-content --restore        # hoàn tác
+```
+
+Lệnh **không xoá bài nào**. `--draft` ghi lại post_status cũ vào
+`_alogweb_quality_previous_status`, nên `--restore` là hoàn tác chính xác chứ
+không phải đoán — và bài do người tự gỡ thì không mang dấu vết này nên được để
+yên.
+
+Cặp meta `_alogweb_quality_*` cố ý tách khỏi `_alogweb_previous_status` của
+sweep "Delisted app check". Một bài có thể vừa bị gỡ khỏi Play vừa mỏng; dùng
+chung một khoá thì cái chạy sau ghi đè cái chạy trước, và lúc restore bài sẽ về
+một trạng thái không sweep nào muốn.
+
+Hai giới hạn nên biết trước khi tin kết quả: `duplicate-of` chỉ bắt trùng
+**khít**, không bắt trùng gần; và lệnh không đánh giá bài hay hay dở. Nó chỉ thu
+hẹp đống bài xuống còn số bài đáng đọc bằng mắt — quyết định giữ hay bỏ vẫn là
+của người.
+
 ## Thêm project mới
 
 Copy `.github/workflows/deploy-alogweb.yml`, đổi `PROJECT`, `APP_DIR`, `paths`
