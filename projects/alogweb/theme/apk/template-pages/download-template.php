@@ -37,20 +37,8 @@ if (empty($app) || get_post_status($pid) !== 'publish') : ?>
 	<?php endif; ?>
 
 	<div class="dl-box">
-		<p class="dl-wait" id="dl-wait">
-			<span class="dl-ring">
-				<svg width="34" height="34" aria-hidden="true">
-					<circle cx="17" cy="17" r="15" fill="none" stroke="var(--surface-3)" stroke-width="2.5"/>
-					<circle id="dl-arc" cx="17" cy="17" r="15" fill="none" stroke="var(--accent)" stroke-width="2.5"
-					        stroke-linecap="round" stroke-dasharray="94.2" stroke-dashoffset="0" transform="rotate(-90 17 17)"/>
-				</svg>
-				<b id="dl-num">3</b>
-			</span>
-			Preparing your download link…
-		</p>
-
 		<a class="btn btn-lg" id="dl-go" href="<?php echo esc_url($target); ?>" rel="nofollow noopener" target="_blank">
-			Download <?php echo esc_html($app['name']); ?><?php echo $app['size'] ? ' · ' . esc_html($app['size']) : ''; ?>
+			Continue to Google Play<?php echo $app['size'] ? ' · ' . esc_html($app['size']) : ''; ?>
 		</a>
 
 		<div class="dl-src"><span>source</span><span><?php echo esc_html(wp_parse_url($target, PHP_URL_HOST)); ?></span></div>
@@ -63,21 +51,6 @@ if (empty($app) || get_post_status($pid) !== 'publish') : ?>
 	<p class="dl-back"><a href="<?php echo esc_url($app['permalink']); ?>">← Back to <?php echo esc_html($app['name']); ?></a></p>
 </div>
 
-<script>
-/* Countdown is decorative: the link works immediately and without JavaScript. */
-(function () {
-	var n = document.getElementById('dl-num'), arc = document.getElementById('dl-arc'),
-	    wait = document.getElementById('dl-wait'), left = 3, C = 94.2;
-	if (!n || !arc || !wait) { return; }
-	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { wait.remove(); return; }
-	var t = setInterval(function () {
-		left--;
-		if (left <= 0) { clearInterval(t); wait.remove(); return; }
-		n.textContent = left;
-		arc.setAttribute('stroke-dashoffset', String(C - (C * left / 3)));
-	}, 1000);
-})();
-</script>
 <?php endif;
 
 get_footer();
