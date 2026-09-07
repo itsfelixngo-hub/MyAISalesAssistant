@@ -15,23 +15,34 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+/**
+ * Every beacon that is configured, not just the first one.
+ *
+ * These used to return early, so setting both ALOGWEB_CF_BEACON_TOKEN and
+ * ALOGWEB_GA_MEASUREMENT_ID loaded Cloudflare only and Google Analytics
+ * recorded nothing - silently, because an unused variable looks exactly like a
+ * correctly configured one from the outside. Running both is a normal thing to
+ * want: they measure different things and disagree in useful ways.
+ */
 function alogweb_analytics_snippet() {
+    $out = array();
+
     // Cloudflare Web Analytics. Use the *manual* snippet and turn automatic
     // injection off in the dashboard - automatic injection happens at the edge,
     // after this origin has already decided the page is an admin screen, so it
     // counts wp-admin no matter what the theme does.
     $cf = trim( (string) getenv( 'ALOGWEB_CF_BEACON_TOKEN' ) );
     if ( $cf !== '' ) {
-        return '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
-             . "data-cf-beacon='" . wp_json_encode( array( 'token' => $cf ) ) . "'></script>";
+        $out[] = '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+               . "data-cf-beacon='" . wp_json_encode( array( 'token' => $cf ) ) . "'></script>";
     }
 
     $ga = trim( (string) getenv( 'ALOGWEB_GA_MEASUREMENT_ID' ) );
     if ( $ga !== '' ) {
         $id = esc_js( $ga );
-        return '<script async src="https://www.googletagmanager.com/gtag/js?id=' . rawurlencode( $ga ) . '"></script>'
-             . '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}'
-             . "gtag('js',new Date());gtag('config','" . $id . "');</script>";
+        $out[] = '<script async src="https://www.googletagmanager.com/gtag/js?id=' . rawurlencode( $ga ) . '"></script>'
+               . '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}'
+               . "gtag('js',new Date());gtag('config','" . $id . "');</script>";
     }
 
     // Anything else. Base64 because a .env value cannot carry raw markup - the
@@ -39,10 +50,10 @@ function alogweb_analytics_snippet() {
     $raw = trim( (string) getenv( 'ALOGWEB_ANALYTICS_HTML_B64' ) );
     if ( $raw !== '' ) {
         $decoded = base64_decode( $raw, true );
-        if ( $decoded !== false ) { return trim( $decoded ); }
+        if ( $decoded !== false && trim( $decoded ) !== '' ) { $out[] = trim( $decoded ); }
     }
 
-    return '';
+    return implode( "\n", $out );
 }
 
 /**
