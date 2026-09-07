@@ -147,7 +147,9 @@ function download_callback($post){
 function info_games_callback($post){
     $info_game = get_post_meta($post->ID, '_info', true);
     if($info_game) : $info_game = json_encode($info_game); else: $info_game = "#"; endif;
-    $html = "<textarea id='info' type='hidden' name='_info'>".$info_game."</textarea>";
+    // esc_textarea, not raw: the browser decodes entities inside a textarea, so
+    // a value that literally contains "&amp;" would come back as "&" on save.
+    $html = "<textarea id='info' type='hidden' name='_info'>".esc_textarea($info_game)."</textarea>";
     echo $html;
 }
 /**
@@ -327,7 +329,7 @@ function save_post_callback($post_id){
         $_feature_image = isset($_POST['_feature_image']) ? urldecode($_POST['_feature_image']) : '';
         $_store_game = isset($_POST['_store_game']) ? urldecode($_POST['_store_game']) : '';
         $_download_game = isset($_POST['_download_game']) ? urldecode($_POST['_download_game']) : '';
-        $_info = isset($_POST['_info']) ? stripslashes($_POST['_info']) : '';
+        $_info = isset($_POST['_info']) ? wp_unslash($_POST['_info']) : '';
         $info = trim($_info, "'");
         $get_info = json_decode($info);
         if (!$get_info) return;
@@ -338,9 +340,15 @@ function save_post_callback($post_id){
         if ($cat && !has_category($cat)) wp_create_category($cat);
         
         if (!has_post_thumbnail( $post_id ) ) alog_generate_featured_image(strtolower($post_name), $_feature_image, $post_id);
-        update_post_meta($post_id, '_store_game', $_store_game);
-        update_post_meta($post_id, '_download_game', $_download_game);      
-        update_post_meta($post_id, '_info', $get_info );
+        update_post_meta($post_id, '_store_game', wp_slash($_store_game));
+        update_post_meta($post_id, '_download_game', wp_slash($_download_game));
+        // wp_slash, because update_post_meta() unslashes what it is given. The
+        // value here was already unslashed once above, so passing it raw took a
+        // second pass at it: the ld+json Google Play returns writes "&" as a
+        // backslash-u0026 escape, that pass ate the backslash, and a bare
+        // "u0026" went into the database - unreadable in the title, and no
+        // longer valid JSON for alogweb_app_name() to decode.
+        update_post_meta($post_id, '_info', wp_slash($get_info));
 
         // Only touch the screenshots when the metabox was actually submitted.
         // $_screenshots used to be written unconditionally while only being
@@ -353,7 +361,7 @@ function save_post_callback($post_id){
                 $url = esc_url_raw(trim($url));
                 if ($url !== '') { $clean[] = $url; }
             }
-            update_post_meta($post_id, '_screenshots', array_values(array_unique($clean)));
+            update_post_meta($post_id, '_screenshots', wp_slash(array_values(array_unique($clean))));
         }
     }
 }
