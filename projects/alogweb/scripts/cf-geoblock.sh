@@ -23,10 +23,10 @@
 # visitor in the blocked country can still fetch an image or a stylesheet by its
 # direct URL - pages, feeds and search are what this closes.
 #
-# CLOUDFLARE_API_TOKEN needs the Zone / WAF / Edit permission on this zone.
-# The cache-purge token does not have it; Cloudflare answers a token that is
-# missing the permission with "Actor does not have permission", not with a
-# vague failure, so the message on screen says which one is wrong.
+# CLOUDFLARE_API_TOKEN needs the Zone / WAF / Edit permission on this zone. A
+# cache-purge token does not have it, and Cloudflare turns it away with a bare
+# "Authentication error" - the same thing it says to a token that is simply
+# wrong. The script adds what to check, because the reply does not.
 set -euo pipefail
 
 # shellcheck source=_common.sh
@@ -171,6 +171,19 @@ cf_call() {
         return 0
     fi
     CF_ERROR="$(json_errors "$CF_BODY")"
+
+    # Cloudflare turns away a token that lacks the WAF permission with the same
+    # kind of authentication error it gives a token that is simply wrong, so the
+    # reply does not say which of the two it is. Name both.
+    case "$CF_ERROR" in
+        *Authentication*|*Unauthorized*|*permission*)
+            CF_ERROR="$CF_ERROR
+     Cloudflare would not let this token near the zone's WAF. Either
+     CLOUDFLARE_API_TOKEN is wrong, or it is missing the Zone / WAF / Edit
+     permission with this zone in its scope - a cache-purge token has neither.
+     Editing an existing token keeps its value, so adding the permission needs
+     no redeploy: save it in the dashboard and run this again." ;;
+    esac
 }
 
 # cf <METHOD> <PATH> [BODY] - the same call, dying on whatever Cloudflare said.
