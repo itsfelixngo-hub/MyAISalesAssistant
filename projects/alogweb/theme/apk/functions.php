@@ -94,11 +94,15 @@ function alogweb_theme_setup() {
 	 * one Google is more likely to rewrite from page text instead. Filtering
 	 * wp_robots rather than printing a second <meta name="robots"> matters -
 	 * two robots tags on a page is a conflict, and the more restrictive one wins.
+	 *
+	 * The values are strings, and have to be: wp_robots() writes "key:value" only
+	 * for a string, and any other truthy value prints the bare directive. Passing
+	 * the integer -1 published "max-snippet" with no length at all.
 	 */
 	function alogweb_robots_snippet( $robots ) {
-		$robots['max-snippet']       = -1;
+		$robots['max-snippet']       = '-1';
 		$robots['max-image-preview'] = 'large';
-		$robots['max-video-preview'] = -1;
+		$robots['max-video-preview'] = '-1';
 		return $robots;
 	}
 	add_filter( 'wp_robots', 'alogweb_robots_snippet' );

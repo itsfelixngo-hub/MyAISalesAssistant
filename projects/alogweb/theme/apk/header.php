@@ -46,9 +46,13 @@
 		} else {
 			$alogweb_term = get_queried_object();
 			if ($alogweb_term && !empty($alogweb_term->name)) {
+				// The name leads and the sentence stays generic after it. Naming
+				// the kind of thing here instead - "%s games and apps" - reads as
+				// "Games games and apps" on the two categories actually called
+				// Games and Apps, and the term names are not all capitalised.
 				$alogweb_og_desc = sprintf(
-					'%s games and apps for Android, reviewed one by one - what each one plays like, how it is rated, and what changed in the latest version.',
-					$alogweb_term->name
+					'%s: Android reviews and guides, with ratings, version details and what changed in each latest update.',
+					ucfirst($alogweb_term->name)
 				);
 			}
 		}
