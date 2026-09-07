@@ -78,6 +78,38 @@ add_filter('wp_sitemaps_add_provider', function ($provider, $name) {
 }, 10, 2);
 
 /**
+ * Keep the download interstitial out of the pages sitemap.
+ *
+ * robots.txt already disallows /download-apk, and listing in a sitemap a URL
+ * that robots.txt forbids is a contradiction Search Console reports as an
+ * error: the sitemap asks Google to index the page, robots.txt refuses to let
+ * it read the page. Google can then index the bare URL with no content behind
+ * it, under whatever title it can infer.
+ *
+ * Found by page template rather than by slug or ID, because those are editable
+ * in wp-admin and this should not quietly stop working when someone renames the
+ * page.
+ */
+add_filter('wp_sitemaps_posts_query_args', function ($args, $post_type) {
+    if ($post_type !== 'page') { return $args; }
+
+    $hidden = get_posts(array(
+        'post_type'      => 'page',
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'meta_key'       => '_wp_page_template',
+        'meta_value'     => 'template-pages/download-template.php',
+    ));
+    if (!$hidden) { return $args; }
+
+    $existing = isset($args['post__not_in']) ? (array) $args['post__not_in'] : array();
+    $args['post__not_in'] = array_merge($existing, $hidden);
+    return $args;
+}, 10, 2);
+
+/**
  * Unregistering a provider is only half the job.
  *
  * The sitemap rewrite rules still match /wp-sitemap-users-1.xml, and core's
