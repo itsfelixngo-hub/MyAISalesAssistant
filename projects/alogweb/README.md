@@ -531,6 +531,50 @@ không đẻ thêm rule mới. Rule tạo tay trên dashboard không bị đụn
 ./scripts/cf-geoblock.sh on --dry-run    # chỉ in expression, không gọi API
 ```
 
+### Chạy ở đâu
+
+Script chỉ cần `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID` trong `.env`, không
+đụng tới container, nên chạy được cả khi stack đang tắt.
+
+Trên VPS — nơi `.env` thật nằm:
+
+```bash
+ssh deploy@<vps>
+cd /home/deploy/apps/alogweb/projects/alogweb
+./scripts/cf-geoblock.sh on
+```
+
+Từ máy khác thì trỏ sang một file env riêng, chỉ cần hai dòng:
+
+```bash
+printf 'CLOUDFLARE_API_TOKEN=...\nCLOUDFLARE_ZONE_ID=...\n' > ~/alogweb-cf.env
+chmod 600 ~/alogweb-cf.env
+ALOGWEB_ENV_FILE=~/alogweb-cf.env ./scripts/cf-geoblock.sh on
+```
+
+Mỗi lệnh đều in expression **sắp ghi** ở đầu, trước khi gọi API. Chưa có rule:
+
+```
+==> Zone debe629e...f0, rule "alogweb geo-block"
+    block (ip.src.country in {"VN"} and not (starts_with(...)))
+
+==> Rule not found - this zone is not geo-blocking anything through this script
+```
+
+Sau khi `on`:
+
+```
+==> Added the rule. block is live for VN, wp-admin excluded.
+```
+
+`status` (chạy không tham số) in cái đang **live** ở dòng `expression:`, còn dòng
+trên cùng là cái `on` sẽ ghi — khác nhau nghĩa là rule trên zone đã cũ so với
+tham số bạn vừa gõ. Đối chiếu thêm ở dashboard: Security → WAF → Custom rules,
+rule tên `alogweb geo-block`.
+
+Đổi ý thì `off` (giữ rule, tắt) hoặc `remove` (xoá hẳn); cả hai đều không đụng
+tới rule khác trong zone.
+
 **wp-admin không bị chặn.** Rule luôn chừa `/wp-admin`, `/wp-login.php`,
 `/wp-json`, `/wp-includes/`, `/wp-content/`, `/wp-cron.php` — vì màn hình admin
 không tự đủ: block editor gọi `/wp-json`, còn trang login và wp-admin nạp CSS/JS
