@@ -37,7 +37,7 @@ while (have_posts()) : the_post();
 		<div class="idcard-act">
 			<a class="btn btn-lg" href="<?php echo esc_url($app['download']); ?>">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 19h16"/></svg>
-				Download APK<?php echo $app['size'] ? ' · ' . esc_html($app['size']) : ''; ?>
+				Get this app<?php echo $app['size'] ? ' · ' . esc_html($app['size']) : ''; ?>
 			</a>
 			<?php if ($app['store_url']) : ?>
 				<a class="btn btn-2 btn-lg" href="<?php echo esc_url($app['store_url']); ?>" target="_blank" rel="nofollow noopener">View on Google Play</a>
@@ -46,7 +46,7 @@ while (have_posts()) : the_post();
 
 		<p class="safety">
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 3 4.5 6v6c0 4.5 3 7.9 7.5 9 4.5-1.1 7.5-4.5 7.5-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
-			Original link from Google Play, checked automatically every day
+			Links to the official Google Play listing. No installer is hosted here.
 		</p>
 
 		<dl class="manifest">
