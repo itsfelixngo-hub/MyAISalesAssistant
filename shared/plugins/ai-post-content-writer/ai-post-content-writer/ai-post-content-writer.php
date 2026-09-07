@@ -28,6 +28,12 @@ final class AI_Post_Content_Writer {
     // recorded decision rather than a guess - and so a sweep only ever restores
     // posts it took down itself.
     const PREVIOUS_STATUS_META = '_alogweb_previous_status';
+    // The content audit keeps its own pair of meta keys rather than borrowing
+    // the two above. A post can be both delisted and thin, and one shared
+    // "previous status" would let whichever ran second overwrite the first -
+    // then a restore would put the post back into a state neither sweep meant.
+    const QUALITY_FLAGS_META = '_alogweb_quality_flags';
+    const QUALITY_PREVIOUS_STATUS_META = '_alogweb_quality_previous_status';
 
     public function __construct() {
         add_action('admin_menu', array($this, 'admin_menu'));
@@ -51,6 +57,7 @@ final class AI_Post_Content_Writer {
             WP_CLI::add_command('aipcw worker', array($this, 'cli_worker'));
             WP_CLI::add_command('aipcw sweep', array($this, 'cli_sweep'));
             WP_CLI::add_command('aipcw tick', array($this, 'cli_tick'));
+            WP_CLI::add_command('aipcw audit-content', array($this, 'cli_audit_content'));
         }
     }
 
@@ -861,6 +868,123 @@ Requirements:
             $job['gone'], $job['failed'], $job['processed'], $job['total']));
         if ($job['drafted'])  { WP_CLI::log(sprintf('Unpublished %d post(s) whose app is gone from Play.', $job['drafted'])); }
         if ($job['restored']) { WP_CLI::log(sprintf('Republished %d post(s) whose app is back.', $job['restored'])); }
+    }
+
+    /**
+     * What is wrong with one post's content, as a list of short reasons.
+     *
+     * Every test here is something a machine can be sure about - a word count,
+     * an exact duplicate, an escape sequence that is not a word. Judgements a
+     * reviewer would make ("is this interesting?") are deliberately absent:
+     * this narrows the pile down to what is worth a person's attention, it does
+     * not decide anything on its own. That is why nothing is ever deleted.
+     *
+     * $seen accumulates content hashes across the run so the second copy of a
+     * duplicated body is the one flagged, not the first.
+     */
+    private function content_flags($post, $min_words, array &$seen) {
+        $flags = array();
+
+        $text  = trim(wp_strip_all_tags((string) $post->post_content));
+        $words = $text === '' ? 0 : count(preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY));
+
+        if ($words === 0)            { $flags[] = 'empty'; }
+        elseif ($words < $min_words) { $flags[] = sprintf('thin:%dw', $words); }
+
+        // A stray "u0026" is what the double-unslash bug left in titles and
+        // slugs. In body text it means the same thing and reads as broken.
+        if (preg_match('/(?<![A-Za-z0-9])u00[0-9a-fA-F]{2}/', $post->post_title . ' ' . $text)) {
+            $flags[] = 'escape-artifact';
+        }
+
+        if ($words > 0) {
+            $hash = md5(preg_replace('/\s+/', ' ', strtolower($text)));
+            if (isset($seen[$hash])) { $flags[] = 'duplicate-of:' . $seen[$hash]; }
+            else { $seen[$hash] = (int) $post->ID; }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Report which published posts look too thin or too broken to carry ads.
+     *
+     *   wp aipcw audit-content                      # report only, writes nothing
+     *   wp aipcw audit-content --min-words=500
+     *   wp aipcw audit-content --draft              # unpublish what is flagged
+     *   wp aipcw audit-content --restore            # put those posts back
+     *
+     * --draft records each post's previous status, so --restore is an exact
+     * undo rather than a guess, and a post someone unpublished by hand is left
+     * alone because it carries no record from this command.
+     */
+    public function cli_audit_content($args, $assoc_args) {
+        $min_words = isset($assoc_args['min-words']) ? max(1, absint($assoc_args['min-words'])) : 400;
+        $draft     = isset($assoc_args['draft']);
+        $restore   = isset($assoc_args['restore']);
+
+        if ($draft && $restore) {
+            WP_CLI::error('--draft and --restore ask for opposite things. Pass one.');
+        }
+
+        if ($restore) {
+            $ids = get_posts(array(
+                'post_type'      => 'post',
+                'post_status'    => 'draft',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array(array('key' => self::QUALITY_PREVIOUS_STATUS_META, 'compare' => 'EXISTS')),
+            ));
+            $back = 0;
+            foreach ($ids as $id) {
+                $previous = (string) get_post_meta($id, self::QUALITY_PREVIOUS_STATUS_META, true);
+                if ($previous === '') { continue; }
+                delete_post_meta($id, self::QUALITY_PREVIOUS_STATUS_META);
+                delete_post_meta($id, self::QUALITY_FLAGS_META);
+                wp_update_post(array('ID' => $id, 'post_status' => $previous));
+                WP_CLI::log(sprintf('  %d  draft -> %s', $id, $previous));
+                $back++;
+            }
+            WP_CLI::success(sprintf('Restored %d post(s) this audit had drafted.', $back));
+            return;
+        }
+
+        $ids = get_posts(array(
+            'post_type'      => 'post',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'orderby'        => 'ID',
+            'order'          => 'ASC',
+        ));
+
+        $seen = array(); $flagged = array(); $drafted = 0;
+        foreach ($ids as $id) {
+            $post = get_post($id);
+            if (!$post) { continue; }
+            $flags = $this->content_flags($post, $min_words, $seen);
+            if (!$flags) { continue; }
+            $flagged[$id] = $flags;
+
+            if (!$draft) { continue; }
+            update_post_meta($id, self::QUALITY_FLAGS_META, implode(',', $flags));
+            update_post_meta($id, self::QUALITY_PREVIOUS_STATUS_META, $post->post_status);
+            wp_update_post(array('ID' => $id, 'post_status' => 'draft'));
+            $drafted++;
+        }
+
+        foreach ($flagged as $id => $flags) {
+            WP_CLI::log(sprintf('  %-6d %-28s %s', $id, implode(' ', $flags), get_post_field('post_name', $id)));
+        }
+
+        $kept = count($ids) - count($flagged);
+        WP_CLI::log(sprintf("\n%d published, %d flagged, %d would remain.", count($ids), count($flagged), $kept));
+
+        if ($draft) {
+            WP_CLI::success(sprintf('Unpublished %d post(s). Undo with: wp aipcw audit-content --restore', $drafted));
+        } else {
+            WP_CLI::success('Nothing was changed. Add --draft to unpublish the posts listed above.');
+        }
     }
 
     public function process_batch($schedule_next = true) {

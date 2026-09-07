@@ -365,6 +365,80 @@ function save_post_callback($post_id){
         }
     }
 }
+
+/**
+ * Repair slugs the double-unslash bug left behind.
+ *
+ * An app called "Google Chrome: Fast & Secure" arrived from Play as
+ * "Fast & Secure", lost its backslash on the way into the database, and
+ * was turned into a slug while it still read "u0026" - so the URL a searcher
+ * sees is /google-chrome-fast-u0026-secure.html. The save path no longer does
+ * this; rows written before the fix stay broken until something rewrites them.
+ *
+ *   wp alogweb fix-slugs            # list what would change, write nothing
+ *   wp alogweb fix-slugs --apply
+ *
+ * The old URL keeps working: changing post_name through wp_update_post() makes
+ * core record the previous slug in _wp_old_slug, and wp_old_slug_redirect()
+ * then 301s the old path to the new one. Nothing has to be redirected by hand.
+ */
+if (defined('WP_CLI') && WP_CLI) {
+    WP_CLI::add_command('alogweb fix-slugs', function ($args, $assoc_args) {
+        $apply = isset($assoc_args['apply']);
+
+        $ids = get_posts(array(
+            'post_type'      => array('post', 'page'),
+            'post_status'    => array('publish', 'draft', 'pending', 'private', 'future'),
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ));
+
+        $found = 0; $changed = 0;
+        foreach ($ids as $id) {
+            $old = get_post_field('post_name', $id);
+            if (!$old || !preg_match('/u00[0-9a-fA-F]{2}/', $old)) { continue; }
+            $found++;
+
+            // Put the character back, then let WordPress decide what a slug
+            // made of it looks like - "&" becomes nothing rather than "and",
+            // which is the slug this post would have had all along.
+            $decoded = preg_replace_callback(
+                '/u00([0-9a-fA-F]{2})/',
+                function ($m) { return chr(hexdec($m[1])); },
+                $old
+            );
+            $new = sanitize_title($decoded);
+            if ($new === '' || $new === $old) {
+                WP_CLI::warning(sprintf('Post %d: cannot improve on "%s", skipped.', $id, $old));
+                continue;
+            }
+
+            if (!$apply) {
+                WP_CLI::log(sprintf('  %d  %s  ->  %s', $id, $old, $new));
+                continue;
+            }
+
+            $res = wp_update_post(array('ID' => $id, 'post_name' => $new), true);
+            if (is_wp_error($res)) {
+                WP_CLI::warning(sprintf('Post %d: %s', $id, $res->get_error_message()));
+                continue;
+            }
+            // Read it back: wp_unique_post_slug() may have appended a suffix.
+            $final = get_post_field('post_name', $id);
+            WP_CLI::log(sprintf('  %d  %s  ->  %s', $id, $old, $final));
+            $changed++;
+        }
+
+        if ($found === 0) {
+            WP_CLI::success('No slug carries a stray unicode escape.');
+        } elseif ($apply) {
+            WP_CLI::success(sprintf('Rewrote %d of %d broken slugs. Old URLs now 301 to the new ones.', $changed, $found));
+        } else {
+            WP_CLI::success(sprintf('%d broken slugs found. Re-run with --apply to rewrite them.', $found));
+        }
+    });
+}
+
 // add_filter('post_type_link', 'change_permalink_structure', 10, 4);
 function change_permalink_structure($permalink, $post, $leavename, $sample)
 {
