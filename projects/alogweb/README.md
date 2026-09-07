@@ -540,13 +540,52 @@ trần và không lưu được bài. Đổi danh sách ở biến `ALLOW_PATHS`
 Đánh đổi: khách trong nước vẫn tải được ảnh hay CSS nếu biết URL trực tiếp. Cái
 bị chặn là trang, feed, sitemap và tìm kiếm — tức là site theo nghĩa người đọc.
 
-`CLOUDFLARE_API_TOKEN` cần quyền **Zone / WAF / Edit**. Token chỉ dùng purge
-cache không đủ; Cloudflare trả về "Actor does not have permission" và script in
-nguyên câu đó ra.
+### Token
 
-Hai giới hạn cần biết trước khi tin vào rule này: người dùng VN qua VPN sẽ được
-tính theo IP thoát của VPN, và ai biết IP thật của VPS vẫn vào thẳng được —
-geo-block chỉ áp dụng cho lưu lượng đi qua Cloudflare.
+`CLOUDFLARE_API_TOKEN` cần quyền **Zone / WAF / Edit**. Token chỉ có Cache Purge
+không đủ — endpoint rulesets trả về `10000: Authentication error`, đúng câu mà
+một token sai cũng nhận được, nên script in kèm hai khả năng cần kiểm tra.
+
+Dùng **một** token cho cả hai việc (My Profile → API Tokens → Create Custom Token):
+
+| Mục | Giá trị |
+|---|---|
+| Permissions | `Zone` → `Zone WAF` → **Edit** |
+| | `Zone` → `Cache Purge` → **Purge** |
+| Zone Resources | Include → Specific zone → `alogweb.com` |
+| Client IP Filtering | **để trống** |
+
+Cache Purge nằm chung để màn "Purge cache" trong wp-admin vẫn chạy — không cần
+giữ token thứ hai. Client IP Filtering mà điền thì token chỉ dùng được từ đúng IP
+đó, chạy từ máy khác là hỏng.
+
+Giá trị token chỉ hiện một lần. Chép xong thì:
+
+1. GitHub → Settings → Environments → **alogweb-production** → Environment
+   secrets → `CLOUDFLARE_API_TOKEN`. Tên secret phải đúng như vậy, workflow đọc
+   theo tên đó.
+2. Actions → Deploy alogweb → **Run workflow** trên nhánh `deploy/alogweb`
+   (`reseed_database` để `false`) — deploy ghi lại `.env` từ secret.
+3. Chạy `./scripts/cf-geoblock.sh` trên VPS, kỳ vọng thấy `Rule not found` thay
+   vì lỗi auth.
+
+Sửa quyền của một token **có sẵn** thì giá trị token không đổi, khỏi bước 1 và 2.
+
+Muốn thử ngay không đợi deploy thì sửa thẳng `.env` trên VPS:
+
+```bash
+sed -i 's|^CLOUDFLARE_API_TOKEN=.*|CLOUDFLARE_API_TOKEN=<token>|' .env
+```
+
+Đặt biến kiểu `CLOUDFLARE_API_TOKEN=... ./scripts/cf-geoblock.sh` **không ăn**:
+`scripts/_common.sh` nạp `.env` bằng `set -a` nên file đè lên biến của shell. Và
+`.env` bị ghi đè mỗi lần deploy, nên sửa tay chỉ để thử — secret trên GitHub vẫn
+là nguồn thật.
+
+### Giới hạn
+
+Người dùng VN qua VPN được tính theo IP thoát của VPN, và ai biết IP thật của VPS
+vẫn vào thẳng được — geo-block chỉ áp dụng cho lưu lượng đi qua Cloudflare.
 
 ## Hiệu năng
 
