@@ -39,8 +39,41 @@
 		}
 		$meta_desc = get_post_meta(get_the_ID(), '_aipcw_meta_description', true);
 		$alogweb_og_desc = $meta_desc ? $meta_desc : wp_trim_words(wp_strip_all_tags(get_the_excerpt()), 30);
+	} elseif (is_category() || is_tag() || is_tax()) {
+		$alogweb_term_desc = wp_strip_all_tags(term_description());
+		if ($alogweb_term_desc) {
+			$alogweb_og_desc = $alogweb_term_desc;
+		} else {
+			$alogweb_term = get_queried_object();
+			if ($alogweb_term && !empty($alogweb_term->name)) {
+				$alogweb_og_desc = sprintf(
+					'%s games and apps for Android, reviewed one by one - what each one plays like, how it is rated, and what changed in the latest version.',
+					$alogweb_term->name
+				);
+			}
+		}
+	} elseif (is_front_page() || is_home()) {
+		// The tagline is the site owner's to set and is often left empty, which
+		// is what leaves the home page with no description at all - and Google
+		// then builds a snippet out of whatever text it finds, which is where
+		// the semicolon-separated list of image alt text in the SERP came from.
+		//
+		// Worded as a review site, deliberately. "Free APK download" reads to an
+		// ad reviewer as a piracy signal no matter what the pages actually hold,
+		// and the description is one of the first things that review sees.
+		$alogweb_og_desc = $alogweb_og_desc ? $alogweb_og_desc : 'Reviews, guides and version details for Android games and apps - what each one does, how it plays, and what changed in the latest update.';
+	}
+
+	// Google truncates a snippet around 155-160 characters and treats a
+	// too-long description as a reason to write its own instead.
+	$alogweb_meta_desc = trim(preg_replace('/\s+/', ' ', (string) $alogweb_og_desc));
+	if (mb_strlen($alogweb_meta_desc) > 160) {
+		$alogweb_meta_desc = rtrim(mb_substr($alogweb_meta_desc, 0, 157), " \t\n\r\0\x0B.,;:-") . '...';
 	}
 	?>
+	<?php if ($alogweb_meta_desc) : ?>
+		<meta name="description" content="<?php echo esc_attr($alogweb_meta_desc); ?>">
+	<?php endif; ?>
 	<meta property="og:site_name" content="<?php echo esc_attr(get_bloginfo('name')); ?>">
 	<meta property="og:type" content="<?php echo is_singular('post') ? 'article' : 'website'; ?>">
 	<meta property="og:title" content="<?php echo esc_attr($alogweb_og_title); ?>">

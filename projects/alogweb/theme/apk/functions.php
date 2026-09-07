@@ -87,6 +87,23 @@ function alogweb_theme_setup() {
 }
 
 	/**
+	 * Let Google show the description in full, and the screenshot at full size.
+	 *
+	 * Core emits max-image-preview:large on its own; the snippet and video
+	 * directives default to Google's own limits, and a snippet clipped short is
+	 * one Google is more likely to rewrite from page text instead. Filtering
+	 * wp_robots rather than printing a second <meta name="robots"> matters -
+	 * two robots tags on a page is a conflict, and the more restrictive one wins.
+	 */
+	function alogweb_robots_snippet( $robots ) {
+		$robots['max-snippet']       = -1;
+		$robots['max-image-preview'] = 'large';
+		$robots['max-video-preview'] = -1;
+		return $robots;
+	}
+	add_filter( 'wp_robots', 'alogweb_robots_snippet' );
+
+	/**
 	 * Cache-bust by file mtime, not by the theme version.
 	 *
 	 * A hand-maintained version number is only correct until the first edit
