@@ -766,7 +766,14 @@ quảng cáo. Bốn dấu hiệu, đều là thứ máy khẳng định được
 ./scripts/wp.sh aipcw audit-content --index          # gỡ cờ noindex
 ./scripts/wp.sh aipcw audit-content --draft          # chuyển bài bị gắn cờ về draft
 ./scripts/wp.sh aipcw audit-content --restore        # hoàn tác --draft
+./scripts/wp.sh aipcw audit-content --draft --skip=13,22,25   # trừ các ID này
 ```
+
+`--skip` có vì số từ không phân biệt được "mỏng nhưng đáng giữ" với "mỏng và vô
+giá trị". Bài về các app nổi tiếng nhất lại là bài ngắn nhất site, đồng thời là
+bài có người tìm nhiều nhất — giấu chúng đi để nâng mặt bằng thì mất nhiều hơn
+được. Bài trong `--skip` vẫn hiện trong báo cáo, kèm nhãn `(kept)`, để không ai
+phải nhớ mình đã bỏ qua bài nào.
 
 ### `--noindex` khác `--draft` thế nào
 
