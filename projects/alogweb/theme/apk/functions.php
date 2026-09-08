@@ -349,6 +349,17 @@ if (defined('WP_CLI') && WP_CLI) {
             if ($code === 404) {
                 $missing++;
                 if ($trash_404) {
+                    // Record the same fact the plugin's delisted sweep records,
+                    // before trashing rather than after: wp_trash_post() keeps
+                    // post meta, but writing it first means a post is never in
+                    // the Trash without the reason it went there.
+                    //
+                    // This is what makes the URL answer 410 instead of 404 -
+                    // the theme's handler looks for this key, and until now a
+                    // post trashed by this command carried no trace of why, so
+                    // it stayed a plain 404 while the sweep's posts did better.
+                    update_post_meta($post->ID, '_alogweb_store_status', 'gone');
+                    update_post_meta($post->ID, '_alogweb_store_checked', current_time('mysql'));
                     if (wp_trash_post($post->ID)) { $trashed++; WP_CLI::warning('Trashed post ' . $post->ID . ': ' . $post->post_title); }
                 } else { WP_CLI::log('404 post ' . $post->ID . ': ' . $post->post_title); }
             } elseif ($code === 0) {
