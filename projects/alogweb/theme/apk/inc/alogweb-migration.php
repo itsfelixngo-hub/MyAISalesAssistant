@@ -169,6 +169,49 @@ add_action('template_redirect', function () {
 }, 11);
 
 /**
+ * 410 for a post whose app is gone from Google Play, not 404.
+ *
+ * The delisted sweep unpublishes those posts, so they already 404 and Google
+ * would drop them eventually. 410 says "permanently gone" rather than "not
+ * found here right now", and Google acts on it sooner - which is the whole
+ * point when the aim is to get them out of the index.
+ *
+ * A redirect would be the wrong tool and is deliberately not used: 301 means
+ * "this moved there", and there is no there. Sending these to the home page or
+ * a category is what Google calls a soft 404 - it does not de-index any faster,
+ * and it leaves a pile of redirects that mean nothing.
+ *
+ * Only posts the store sweep marked 'gone' get this. A post drafted for being
+ * thin might be rewritten and published again next week; telling Google it is
+ * permanently gone would be a lie with a cost.
+ *
+ * query_vars['name'] rather than parsing REQUEST_URI: the rewrite rules have
+ * already worked out which slug was asked for by the time the query 404s, and
+ * that answer survives permalink structure changes.
+ */
+add_action('template_redirect', function () {
+    if (!is_404()) { return; }
+
+    $slug = get_query_var('name');
+    if (!$slug) { return; }
+
+    $matches = get_posts(array(
+        'name'           => $slug,
+        'post_type'      => 'post',
+        'post_status'    => array('draft', 'pending', 'private', 'trash'),
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+    ));
+    if (!$matches) { return; }
+
+    if (get_post_meta($matches[0], '_alogweb_store_status', true) !== 'gone') { return; }
+
+    status_header(410);
+    nocache_headers();
+}, 12);
+
+/**
  * The live site declares Yoast's sitemap in robots.txt and Google has been
  * fetching /sitemap_index.xml for years. This theme has no Yoast, so those
  * paths would 404 the moment the new server takes over - throwing away a

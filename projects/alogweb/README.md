@@ -693,6 +693,28 @@ Chuyển các bài trả đúng HTTP 404 vào Trash (chỉ chạy sau khi đã x
 Bài bị chuyển Trash không còn nằm trong danh sách public và không vào sitemap,
 có thể Restore lại từ WordPress Trash. Chỉ HTTP `404` mới bị chuyển Trash.
 
+### Bài đã gỡ trả 410, không phải 404
+
+Sweep "Delisted app check" ghi `_alogweb_store_status = gone` rồi chuyển bài về
+draft. Theme thấy cờ đó và trả **HTTP 410 Gone** thay vì 404
+(`inc/alogweb-migration.php`). 410 nghĩa là "biến mất vĩnh viễn" chứ không phải
+"lúc này không tìm thấy", nên Google gỡ khỏi index dứt khoát hơn.
+
+**Không dùng 301 cho những bài này.** 301 nghĩa là "đã chuyển sang chỗ kia", mà
+ở đây không có chỗ kia — app đã bị gỡ khỏi Play. Trỏ chúng về trang chủ hay
+category là thứ Google gọi là *soft 404*: không de-index nhanh hơn, lại để lại
+một đống redirect vô nghĩa.
+
+Chỉ bài mang cờ `gone` mới nhận 410. Bài bị draft vì mỏng thì vẫn 404, vì tuần
+sau có thể viết lại rồi publish — nói với Google là nó biến mất vĩnh viễn sẽ
+phải trả giá khi muốn đưa nó trở lại.
+
+Kiểm tra:
+
+```bash
+curl -I https://alogweb.com/<slug-bài-đã-gỡ>.html   # mong đợi: 410
+```
+
 ## Sửa slug dính `u0026`
 
 Chuỗi ld+json Google Play trả về ghi `&` thành `&`. Trước bản vá,
