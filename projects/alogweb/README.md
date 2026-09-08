@@ -709,6 +709,11 @@ Chỉ bài mang cờ `gone` mới nhận 410. Bài bị draft vì mỏng thì v�
 sau có thể viết lại rồi publish — nói với Google là nó biến mất vĩnh viễn sẽ
 phải trả giá khi muốn đưa nó trở lại.
 
+Hai đường đều ghi cờ này: sweep "Delisted app check" của plugin (chuyển draft),
+và `alogweb check-store-links --trash-404` của theme (chuyển Trash). Bài trong
+Trash được tìm bằng cả `<slug>` lẫn `<slug>__trashed`, vì WordPress đổi tên slug
+khi chuyển vào Trash.
+
 Kiểm tra:
 
 ```bash
