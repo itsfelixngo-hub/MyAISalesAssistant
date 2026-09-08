@@ -195,8 +195,12 @@ add_action('template_redirect', function () {
     $slug = get_query_var('name');
     if (!$slug) { return; }
 
+    // Both spellings, because WordPress renames a post's slug to "<slug>__trashed"
+    // when it goes to the Trash - and `alogweb check-store-links --trash-404`
+    // puts posts there. Looking for the requested slug alone would find every
+    // draft and miss every trashed one, silently.
     $matches = get_posts(array(
-        'name'           => $slug,
+        'post_name__in'  => array($slug, $slug . '__trashed'),
         'post_type'      => 'post',
         'post_status'    => array('draft', 'pending', 'private', 'trash'),
         'posts_per_page' => 1,
