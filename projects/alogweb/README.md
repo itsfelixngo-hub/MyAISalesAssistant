@@ -735,9 +735,31 @@ quảng cáo. Bốn dấu hiệu, đều là thứ máy khẳng định được
 ```bash
 ./scripts/wp.sh aipcw audit-content                  # báo cáo, không ghi gì
 ./scripts/wp.sh aipcw audit-content --min-words=500
+./scripts/wp.sh aipcw audit-content --noindex        # giữ bài, ẩn khỏi Search
+./scripts/wp.sh aipcw audit-content --index          # gỡ cờ noindex
 ./scripts/wp.sh aipcw audit-content --draft          # chuyển bài bị gắn cờ về draft
-./scripts/wp.sh aipcw audit-content --restore        # hoàn tác
+./scripts/wp.sh aipcw audit-content --restore        # hoàn tác --draft
 ```
+
+### `--noindex` khác `--draft` thế nào
+
+`--noindex` ghi meta `_alogweb_quality_noindex`. Theme đọc cờ đó
+(`inc/alogweb-migration.php`) và làm hai việc: thêm `noindex, follow` vào thẻ
+robots của bài, và loại bài khỏi sitemap — nếu chỉ làm việc đầu thì sitemap vẫn
+bảo Google index trong khi trang bảo đừng, đúng mâu thuẫn mà `/download-apk` đã
+mắc.
+
+`follow` chứ không phải `nofollow`: bài vẫn trỏ tới category và bài liên quan,
+những link đó vẫn nên được crawl. Chỉ riêng trang này xin đứng ngoài index.
+
+Chạy lại `--noindex` sau khi đã viết thêm cho một bài thì cờ tự được gỡ — không
+ai phải nhớ bài nào từng bị gắn.
+
+> **`--noindex` không đưa bài ra khỏi phạm vi AdSense.** Bài vẫn publish, vẫn có
+> link từ trang chủ và category, và nếu code quảng cáo in ra ở đó thì Google
+> Publisher Policies vẫn áp dụng cho nó. `--noindex` là công cụ cho Search.
+> Muốn bài nằm ngoài tầm AdSense thì phải `--draft`, hoặc chặn không in ad code
+> trên các bài mang cờ này.
 
 Lệnh **không xoá bài nào**. `--draft` ghi lại post_status cũ vào
 `_alogweb_quality_previous_status`, nên `--restore` là hoàn tác chính xác chứ

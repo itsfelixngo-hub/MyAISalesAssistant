@@ -34,6 +34,11 @@ final class AI_Post_Content_Writer {
     // then a restore would put the post back into a state neither sweep meant.
     const QUALITY_FLAGS_META = '_alogweb_quality_flags';
     const QUALITY_PREVIOUS_STATUS_META = '_alogweb_quality_previous_status';
+    // Read by the alogweb theme, which turns it into a noindex robots directive
+    // and drops the post from the sitemap. The string is duplicated there on
+    // purpose: these meta rows outlive a deactivation of this plugin, and the
+    // theme has to keep honouring them when the constant is gone.
+    const QUALITY_NOINDEX_META = '_alogweb_quality_noindex';
 
     public function __construct() {
         add_action('admin_menu', array($this, 'admin_menu'));
@@ -911,20 +916,41 @@ Requirements:
      *
      *   wp aipcw audit-content                      # report only, writes nothing
      *   wp aipcw audit-content --min-words=500
+     *   wp aipcw audit-content --noindex            # keep them readable, drop from Search
+     *   wp aipcw audit-content --index              # undo that
      *   wp aipcw audit-content --draft              # unpublish what is flagged
      *   wp aipcw audit-content --restore            # put those posts back
      *
-     * --draft records each post's previous status, so --restore is an exact
-     * undo rather than a guess, and a post someone unpublished by hand is left
-     * alone because it carries no record from this command.
+     * Two different tools. --noindex leaves a post published and readable and
+     * only asks Search to skip it, which is the gentler one and what a thin but
+     * honest page usually deserves. --draft takes it off the site altogether.
+     *
+     * Both record enough to be undone exactly: --draft stores the previous
+     * status, and a post someone unpublished by hand carries no such record, so
+     * --restore leaves it alone rather than overruling a person.
      */
     public function cli_audit_content($args, $assoc_args) {
         $min_words = isset($assoc_args['min-words']) ? max(1, absint($assoc_args['min-words'])) : 400;
         $draft     = isset($assoc_args['draft']);
         $restore   = isset($assoc_args['restore']);
+        $noindex   = isset($assoc_args['noindex']);
+        $reindex   = isset($assoc_args['index']);
 
-        if ($draft && $restore) {
-            WP_CLI::error('--draft and --restore ask for opposite things. Pass one.');
+        if (count(array_filter(array($draft, $restore, $noindex, $reindex))) > 1) {
+            WP_CLI::error('Pass one of --draft, --restore, --noindex, --index.');
+        }
+
+        if ($reindex) {
+            $ids = get_posts(array(
+                'post_type'      => 'post',
+                'post_status'    => array('publish', 'draft', 'pending', 'private'),
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array(array('key' => self::QUALITY_NOINDEX_META, 'compare' => 'EXISTS')),
+            ));
+            foreach ($ids as $id) { delete_post_meta($id, self::QUALITY_NOINDEX_META); }
+            WP_CLI::success(sprintf('Cleared the noindex flag on %d post(s).', count($ids)));
+            return;
         }
 
         if ($restore) {
@@ -958,13 +984,29 @@ Requirements:
             'order'          => 'ASC',
         ));
 
-        $seen = array(); $flagged = array(); $drafted = 0;
+        $seen = array(); $flagged = array(); $drafted = 0; $hidden = 0;
         foreach ($ids as $id) {
             $post = get_post($id);
             if (!$post) { continue; }
             $flags = $this->content_flags($post, $min_words, $seen);
-            if (!$flags) { continue; }
+
+            // A post that has climbed back over the bar gets its index entry
+            // back without anyone having to remember it was ever flagged.
+            if (!$flags) {
+                if ($noindex && get_post_meta($id, self::QUALITY_NOINDEX_META, true)) {
+                    delete_post_meta($id, self::QUALITY_NOINDEX_META);
+                    delete_post_meta($id, self::QUALITY_FLAGS_META);
+                }
+                continue;
+            }
             $flagged[$id] = $flags;
+
+            if ($noindex) {
+                update_post_meta($id, self::QUALITY_FLAGS_META, implode(',', $flags));
+                update_post_meta($id, self::QUALITY_NOINDEX_META, '1');
+                $hidden++;
+                continue;
+            }
 
             if (!$draft) { continue; }
             update_post_meta($id, self::QUALITY_FLAGS_META, implode(',', $flags));
@@ -982,8 +1024,13 @@ Requirements:
 
         if ($draft) {
             WP_CLI::success(sprintf('Unpublished %d post(s). Undo with: wp aipcw audit-content --restore', $drafted));
+        } elseif ($noindex) {
+            WP_CLI::success(sprintf(
+                'Noindexed %d post(s); they stay published and readable. Undo with: wp aipcw audit-content --index',
+                $hidden
+            ));
         } else {
-            WP_CLI::success('Nothing was changed. Add --draft to unpublish the posts listed above.');
+            WP_CLI::success('Nothing was changed. Add --noindex to keep these out of Search, or --draft to unpublish them.');
         }
     }
 

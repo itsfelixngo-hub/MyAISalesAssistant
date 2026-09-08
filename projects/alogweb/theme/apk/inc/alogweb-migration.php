@@ -31,6 +31,29 @@ add_filter('wp_robots', function ($robots) {
     return $robots;
 });
 
+/**
+ * Posts the content audit judged too thin to be worth a search result.
+ *
+ * The flag is written by `wp aipcw audit-content --noindex` in the AI Post
+ * Content Writer plugin; this is the half that acts on it. Kept as a literal
+ * rather than a reference to the plugin's constant because the theme has to
+ * behave the same when the plugin is deactivated - the meta rows outlive it.
+ *
+ * "follow", not "nofollow": the page still links to category and related posts
+ * that should be crawled. Only this page is asking to stay out of the index.
+ */
+const ALOGWEB_QUALITY_NOINDEX_META = '_alogweb_quality_noindex';
+
+add_filter('wp_robots', function ($robots) {
+    if (!is_singular('post')) { return $robots; }
+    if (!get_post_meta(get_queried_object_id(), ALOGWEB_QUALITY_NOINDEX_META, true)) { return $robots; }
+
+    $robots['noindex'] = true;
+    $robots['follow']  = true;
+    unset($robots['max-snippet']);   // meaningless once the page is out of the index
+    return $robots;
+}, 11);
+
 add_filter('robots_txt', function ($output) {
     if (alogweb_is_provisional_host()) {
         return "User-agent: *\nDisallow: /\n";
@@ -91,6 +114,17 @@ add_filter('wp_sitemaps_add_provider', function ($provider, $name) {
  * page.
  */
 add_filter('wp_sitemaps_posts_query_args', function ($args, $post_type) {
+    // A noindexed post in the sitemap is the same contradiction /download-apk
+    // was: the sitemap asks Google to index it while the page asks not to be.
+    // Search Console reports it, and the two signals argue in public.
+    if ($post_type === 'post') {
+        $args['meta_query'] = array_merge(
+            isset($args['meta_query']) ? (array) $args['meta_query'] : array(),
+            array(array('key' => ALOGWEB_QUALITY_NOINDEX_META, 'compare' => 'NOT EXISTS'))
+        );
+        return $args;
+    }
+
     if ($post_type !== 'page') { return $args; }
 
     $hidden = get_posts(array(
