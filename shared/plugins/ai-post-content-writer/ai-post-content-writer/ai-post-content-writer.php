@@ -920,6 +920,12 @@ Requirements:
      *   wp aipcw audit-content --index              # undo that
      *   wp aipcw audit-content --draft              # unpublish what is flagged
      *   wp aipcw audit-content --restore            # put those posts back
+     *   wp aipcw audit-content --draft --skip=13,22 # ... except these
+     *
+     * --skip exists because a word count cannot tell "thin but worth keeping"
+     * from "thin and worth nothing". The posts for the best-known apps are the
+     * shortest on this site and also the ones people actually search for;
+     * hiding those to raise an average would cost more than it gains.
      *
      * Two different tools. --noindex leaves a post published and readable and
      * only asks Search to skip it, which is the gentler one and what a thin but
@@ -935,6 +941,9 @@ Requirements:
         $restore   = isset($assoc_args['restore']);
         $noindex   = isset($assoc_args['noindex']);
         $reindex   = isset($assoc_args['index']);
+        $skip      = isset($assoc_args['skip'])
+            ? array_filter(array_map('absint', explode(',', (string) $assoc_args['skip'])))
+            : array();
 
         if (count(array_filter(array($draft, $restore, $noindex, $reindex))) > 1) {
             WP_CLI::error('Pass one of --draft, --restore, --noindex, --index.');
@@ -997,6 +1006,13 @@ Requirements:
                     delete_post_meta($id, self::QUALITY_NOINDEX_META);
                     delete_post_meta($id, self::QUALITY_FLAGS_META);
                 }
+                continue;
+            }
+            // Still listed, so the report stays a full picture of what is thin -
+            // it just is not acted on. Silently dropping it would make the kept
+            // posts invisible in the one place someone would look for them.
+            if (in_array((int) $id, $skip, true)) {
+                $flagged[$id] = array_merge($flags, array('(kept)'));
                 continue;
             }
             $flagged[$id] = $flags;
