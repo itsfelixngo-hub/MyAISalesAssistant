@@ -50,6 +50,9 @@ final class AI_Post_Content_Writer {
         add_action('admin_post_aipcw_test_post', array($this, 'test_post'));
         add_action('admin_post_aipcw_stop_scan', array($this, 'stop_scan'));
         add_action('admin_post_aipcw_revert', array($this, 'revert_post'));
+        add_filter('display_post_states', array($this, 'post_states'), 10, 2);
+        add_action('restrict_manage_posts', array($this, 'posts_filter_dropdown'));
+        add_action('pre_get_posts', array($this, 'apply_posts_filter'));
         add_action('wp_ajax_aipcw_status', array($this, 'ajax_status'));
         add_action(self::CRON, array($this, 'process_batch'));
         add_action('wp_ajax_aipcw_sweep_tick', array($this, 'ajax_sweep_tick'));
@@ -873,6 +876,65 @@ Requirements:
             $job['gone'], $job['failed'], $job['processed'], $job['total']));
         if ($job['drafted'])  { WP_CLI::log(sprintf('Unpublished %d post(s) whose app is gone from Play.', $job['drafted'])); }
         if ($job['restored']) { WP_CLI::log(sprintf('Republished %d post(s) whose app is back.', $job['restored'])); }
+    }
+
+    /**
+     * Say why a post is a draft, in the list where someone is deciding about it.
+     *
+     * Two unrelated jobs unpublish posts - the delisted sweep and the content
+     * audit - and both leave the same word, "Draft", next to the title. Sorting
+     * one pile from the other meant going to WP-CLI, so the screen that offers
+     * Edit and Trash was the one screen that could not tell you which was which.
+     */
+    public function post_states($states, $post) {
+        if (get_post_meta($post->ID, self::STORE_STATUS_META, true) === 'gone') {
+            $states['alogweb_gone'] = __('Delisted from Play', 'aipcw');
+        }
+        $flags = (string) get_post_meta($post->ID, self::QUALITY_FLAGS_META, true);
+        if ($flags !== '') {
+            $states['alogweb_audit'] = sprintf(__('Audit: %s', 'aipcw'), esc_html($flags));
+        }
+        if (get_post_meta($post->ID, self::QUALITY_NOINDEX_META, true)) {
+            $states['alogweb_noindex'] = __('noindex', 'aipcw');
+        }
+        return $states;
+    }
+
+    /** The same two groups, as a filter above the list. */
+    public function posts_filter_dropdown($post_type) {
+        if ($post_type !== 'post') { return; }
+        $current = isset($_GET['alogweb_group']) ? sanitize_key($_GET['alogweb_group']) : '';
+        $options = array(
+            ''         => __('All reasons', 'aipcw'),
+            'gone'     => __('Delisted from Play', 'aipcw'),
+            'thin'     => __('Flagged by content audit', 'aipcw'),
+            'noindex'  => __('Noindexed by audit', 'aipcw'),
+        );
+        echo '<select name="alogweb_group">';
+        foreach ($options as $value => $label) {
+            printf(
+                '<option value="%s"%s>%s</option>',
+                esc_attr($value),
+                selected($current, $value, false),
+                esc_html($label)
+            );
+        }
+        echo '</select>';
+    }
+
+    public function apply_posts_filter($query) {
+        if (!is_admin() || !$query->is_main_query()) { return; }
+        if ($query->get('post_type') !== 'post') { return; }
+        $group = isset($_GET['alogweb_group']) ? sanitize_key($_GET['alogweb_group']) : '';
+        if ($group === '') { return; }
+
+        $map = array(
+            'gone'    => array('key' => self::STORE_STATUS_META, 'value' => 'gone'),
+            'thin'    => array('key' => self::QUALITY_FLAGS_META, 'compare' => 'EXISTS'),
+            'noindex' => array('key' => self::QUALITY_NOINDEX_META, 'compare' => 'EXISTS'),
+        );
+        if (!isset($map[$group])) { return; }
+        $query->set('meta_query', array($map[$group]));
     }
 
     /**
