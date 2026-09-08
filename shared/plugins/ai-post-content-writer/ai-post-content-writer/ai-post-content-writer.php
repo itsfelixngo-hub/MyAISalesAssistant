@@ -1055,7 +1055,7 @@ Requirements:
             'order'          => 'ASC',
         ));
 
-        $seen = array(); $flagged = array(); $drafted = 0; $hidden = 0;
+        $seen = array(); $flagged = array(); $drafted = 0; $hidden = 0; $spared = 0;
         foreach ($ids as $id) {
             $post = get_post($id);
             if (!$post) { continue; }
@@ -1075,6 +1075,7 @@ Requirements:
             // posts invisible in the one place someone would look for them.
             if (in_array((int) $id, $skip, true)) {
                 $flagged[$id] = array_merge($flags, array('(kept)'));
+                $spared++;
                 continue;
             }
             $flagged[$id] = $flags;
@@ -1097,8 +1098,16 @@ Requirements:
             WP_CLI::log(sprintf('  %-6d %-28s %s', $id, implode(' ', $flags), get_post_field('post_name', $id)));
         }
 
-        $kept = count($ids) - count($flagged);
-        WP_CLI::log(sprintf("\n%d published, %d flagged, %d would remain.", count($ids), count($flagged), $kept));
+        // Counted off what is acted on, not off what is listed: a --skip post is
+        // flagged and stays published, and folding it into the wrong side of
+        // this line understates what survives - the one number a person reads
+        // before deciding whether the cut is too deep.
+        $acted  = count($flagged) - $spared;
+        $remain = count($ids) - $acted;
+        WP_CLI::log(sprintf(
+            "\n%d published, %d flagged (%d kept), %d to act on, %d would remain.",
+            count($ids), count($flagged), $spared, $acted, $remain
+        ));
 
         if ($draft) {
             WP_CLI::success(sprintf('Unpublished %d post(s). Undo with: wp aipcw audit-content --restore', $drafted));
