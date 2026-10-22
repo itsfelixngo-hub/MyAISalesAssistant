@@ -5,7 +5,7 @@
 	<div class="wrap">
 		<div class="ft-cols">
 			<div>
-				<span class="mark">alog<b>web</b><i>APK</i></span>
+				<span class="mark">alog<b>web</b></span>
 				<p>A directory of Android games and apps, linking to the official release pages. No installer files are hosted here.</p>
 			</div>
 

@@ -98,7 +98,7 @@
 <header class="site-hd">
 	<div class="site-hd-in wrap">
 		<a class="mark" href="<?php echo esc_url(home_url('/')); ?>">
-			alog<b>web</b><i>APK</i>
+			alog<b>web</b>
 		</a>
 
 		<form class="site-search" role="search" method="get"

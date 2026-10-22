@@ -70,7 +70,6 @@ main.wrap{padding-top:22px; padding-bottom:44px; display:block; min-height:56vh;
 .site-hd-in{display:flex; align-items:center; gap:20px; height:58px;}
 .mark{display:inline-flex; align-items:baseline; gap:1px; font-weight:700; font-size:19px; letter-spacing:-.04em; flex:none; color:var(--ink);}
 .mark b{color:var(--accent);}
-.mark i{font-style:normal; font-family:var(--font-mono); font-size:10px; color:var(--ink-3); letter-spacing:0; align-self:flex-start; margin-left:3px;}
 
 /* Namespaced on purpose: WordPress puts "search" and "tag" on <body> via
    body_class(), so a bare .site-search rule styles the whole document on every
