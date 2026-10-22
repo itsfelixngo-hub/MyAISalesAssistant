@@ -78,7 +78,7 @@ function alogweb_app($post_id = null) {
 
     return array(
         'id'          => $post_id,
-        'name'        => alogweb_app_name($post_id, $info),
+        'name'        => alogweb_wording_applies() ? alogweb_strip_apk(alogweb_app_name($post_id, $info)) : alogweb_app_name($post_id, $info),
         'headline'    => get_the_title($post_id),
         'permalink'   => get_permalink($post_id),
         'dev'         => $clean($info->dev ?? ''),

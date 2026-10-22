@@ -15,7 +15,7 @@
 			  <label class="search__label-init" for="trigger"></label>
 			  <label class="search__label-active" for="trigger"></label>
 			  <div class="search__border"></div>
-			  <input type="text" class="search__input" type="text" placeholder="Search for a APK" name="s"/>
+			  <input type="text" class="search__input" type="text" placeholder="Search for a game or app" name="s"/>
 			  <input style="display: none;" type="submit" name="">
 			  <div class="search__close"></div>
 			</div>

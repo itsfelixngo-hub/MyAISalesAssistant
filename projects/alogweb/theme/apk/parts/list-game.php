@@ -29,7 +29,7 @@
 		</div>
 		<img src="<?=isset($thumbnail[0]) ? $thumbnail[0] : "#";?>" alt="<?=bloginfo('name')?>- <?=$name;?>">
 		<?php if(!wp_is_mobile() ):?>
-		<div class="btn-download"><span class="txt-download">Download APK</span></div>
+		<div class="btn-download"><span class="txt-download">Download</span></div>
 		<?php endif;?>
 	</a>
 </div>

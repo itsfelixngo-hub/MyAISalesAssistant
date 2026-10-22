@@ -89,7 +89,8 @@ function alogweb_search_snippet($post, $term, $length = 210) {
     // "**" turn up verbatim in an extract unless they are taken out here.
     $text = preg_replace('/^\s{0,3}#{1,6}\s+/mu', '', $text);
     $text = preg_replace('/(\*\*|__|`|~~)/u', '', $text);
-    $text = trim(preg_replace('/\s+/u', ' ', $text));
+    // Raw post_content skips the_content, so the APK filter has to run here too.
+    $text = alogweb_strip_apk(trim(preg_replace('/\s+/u', ' ', $text)));
     if ($text === '') { return ''; }
 
     $term = trim($term);

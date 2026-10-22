@@ -17,6 +17,7 @@ include 'inc/alogweb-hardening.php';
 include 'inc/alogweb-analytics.php';
 include 'inc/alogweb-ads.php';
 include 'inc/alogweb-cache.php';
+include 'inc/alogweb-wording.php';
 // include 'inc/class_yoast_seo.php';
 /*
  * Theme setup must run on after_setup_theme. Calling __() while this file is
