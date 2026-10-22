@@ -78,7 +78,7 @@ function alogweb_app($post_id = null) {
 
     return array(
         'id'          => $post_id,
-        'name'        => alogweb_app_name($post_id, $info),
+        'name'        => alogweb_wording_applies() ? alogweb_strip_apk(alogweb_app_name($post_id, $info)) : alogweb_app_name($post_id, $info),
         'headline'    => get_the_title($post_id),
         'permalink'   => get_permalink($post_id),
         'dev'         => $clean($info->dev ?? ''),
@@ -93,7 +93,7 @@ function alogweb_app($post_id = null) {
         'screenshots' => $screenshots,
         'cat_name'    => $term ? $term->name : '',
         'cat_link'    => $term ? get_category_link($term->term_id) : '',
-        'download'    => home_url('/download-apk?pid=' . $post_id),
+        'download'    => alogweb_download_url($post_id),
     );
 }
 

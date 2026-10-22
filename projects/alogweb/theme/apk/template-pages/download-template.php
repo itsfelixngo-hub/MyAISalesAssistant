@@ -1,6 +1,6 @@
 <?php
 /**
- * Template Name: Download APK
+ * Template Name: Official source
  *
  * One job on screen: send the visitor to the official release page. Navigation
  * chrome is deliberately absent so nothing competes with the download button.
@@ -14,7 +14,7 @@ get_header();
 
 if (empty($app) || get_post_status($pid) !== 'publish') : ?>
 	<div class="page-hd"><h1>App not found</h1></div>
-	<p class="empty">This download link is no longer valid. <a href="<?php echo esc_url(home_url('/')); ?>">Back to home</a>.</p>
+	<p class="empty">This link is no longer valid. <a href="<?php echo esc_url(home_url('/')); ?>">Back to home</a>.</p>
 <?php else :
 	$specs   = alogweb_spec_parts($app);
 	$package = alogweb_package_id($app);
@@ -47,7 +47,7 @@ if (empty($app) || get_post_status($pid) !== 'publish') : ?>
 		<?php endif; ?>
 	</div>
 
-	<p class="dl-note"><?php bloginfo('name'); ?>  does not host APK files. The link points straight to the official release page.</p>
+	<p class="dl-note"><?php bloginfo('name'); ?>  does not host app files. The link points straight to the official release page.</p>
 	<p class="dl-back"><a href="<?php echo esc_url($app['permalink']); ?>">← Back to <?php echo esc_html($app['name']); ?></a></p>
 </div>
 

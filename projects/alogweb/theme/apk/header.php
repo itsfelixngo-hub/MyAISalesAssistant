@@ -68,9 +68,12 @@
 		$alogweb_og_desc = $alogweb_og_desc ? $alogweb_og_desc : 'Reviews, guides and version details for Android games and apps - what each one does, how it plays, and what changed in the latest update.';
 	}
 
+	// The stored meta descriptions came from the importer and still say APK.
+	$alogweb_og_desc = alogweb_strip_apk((string) $alogweb_og_desc);
+
 	// Google truncates a snippet around 155-160 characters and treats a
 	// too-long description as a reason to write its own instead.
-	$alogweb_meta_desc = trim(preg_replace('/\s+/', ' ', (string) $alogweb_og_desc));
+	$alogweb_meta_desc = trim(preg_replace('/\s+/', ' ', $alogweb_og_desc));
 	if (mb_strlen($alogweb_meta_desc) > 160) {
 		$alogweb_meta_desc = rtrim(mb_substr($alogweb_meta_desc, 0, 157), " \t\n\r\0\x0B.,;:-") . '...';
 	}
