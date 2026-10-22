@@ -94,3 +94,77 @@ add_action('init', function () {
         add_filter($hook, 'alogweb_strip_apk_html', 20);
     }
 });
+
+/* ------------------------------------------------------------ the download URL
+ * The download step lived at /download-apk, the slug of a page in the database.
+ * It is served at /official-source/ now, which says what the page actually does
+ * - hand the visitor to the official release page - where "apk" and "download"
+ * both read to an ad reviewer as a site that hands out files. The database row
+ * is left alone: the page is found
+ * by its template, /download/ is pointed at it, its permalink is rewritten to
+ * match, and the old address answers with a 301 that keeps ?pid. Renaming the
+ * slug in wp-admin later changes nothing - the template is what is looked up.
+ */
+const ALOGWEB_DOWNLOAD_PATH = 'official-source';
+const ALOGWEB_DOWNLOAD_TITLE = 'Official source';
+
+function alogweb_download_page_id() {
+    static $id = null;
+    if ($id === null) {
+        $ids = get_posts(array(
+            'post_type'      => 'page',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_key'       => '_wp_page_template',
+            'meta_value'     => 'template-pages/download-template.php',
+        ));
+        $id = $ids ? (int) $ids[0] : 0;
+    }
+    return $id;
+}
+
+function alogweb_download_url($post_id) {
+    return add_query_arg('pid', (int) $post_id, home_url(user_trailingslashit(ALOGWEB_DOWNLOAD_PATH)));
+}
+
+add_action('parse_request', function ($wp) {
+    if ($wp->request !== ALOGWEB_DOWNLOAD_PATH) { return; }
+    $page = alogweb_download_page_id();
+    if ($page) { $wp->query_vars = array('page_id' => $page); }
+});
+
+// The row is titled "Download APK"; the APK filter alone would leave "Download".
+add_filter('the_title', function ($title, $post_id = 0) {
+    return (alogweb_wording_applies() && (int) $post_id && (int) $post_id === alogweb_download_page_id())
+        ? ALOGWEB_DOWNLOAD_TITLE
+        : $title;
+}, 10, 2);
+
+// <title> and og:title come through here, not the_title.
+add_filter('single_post_title', function ($title, $post = null) {
+    return (alogweb_wording_applies() && $post && (int) $post->ID === alogweb_download_page_id())
+        ? ALOGWEB_DOWNLOAD_TITLE
+        : $title;
+}, 10, 2);
+
+add_filter('page_link', function ($link, $post_id) {
+    return ((int) $post_id === alogweb_download_page_id())
+        ? home_url(user_trailingslashit(ALOGWEB_DOWNLOAD_PATH))
+        : $link;
+}, 10, 2);
+
+// Ahead of redirect_canonical (10), which would otherwise send the old slug to
+// the new permalink but drop ?pid along the way.
+add_action('template_redirect', function () {
+    $page = alogweb_download_page_id();
+    if (!$page || !is_page($page)) { return; }
+
+    $path = trim((string) wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+    if ($path === ALOGWEB_DOWNLOAD_PATH) { return; }
+
+    $pid = isset($_GET['pid']) ? absint($_GET['pid']) : 0;
+    wp_safe_redirect($pid ? alogweb_download_url($pid) : home_url(user_trailingslashit(ALOGWEB_DOWNLOAD_PATH)), 301);
+    exit;
+}, 5);

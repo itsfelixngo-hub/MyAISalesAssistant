@@ -1,6 +1,6 @@
 <?php
 /**
- * Template Name: Download
+ * Template Name: Official source
  *
  * One job on screen: send the visitor to the official release page. Navigation
  * chrome is deliberately absent so nothing competes with the download button.
@@ -14,7 +14,7 @@ get_header();
 
 if (empty($app) || get_post_status($pid) !== 'publish') : ?>
 	<div class="page-hd"><h1>App not found</h1></div>
-	<p class="empty">This download link is no longer valid. <a href="<?php echo esc_url(home_url('/')); ?>">Back to home</a>.</p>
+	<p class="empty">This link is no longer valid. <a href="<?php echo esc_url(home_url('/')); ?>">Back to home</a>.</p>
 <?php else :
 	$specs   = alogweb_spec_parts($app);
 	$package = alogweb_package_id($app);

@@ -93,7 +93,7 @@ function alogweb_app($post_id = null) {
         'screenshots' => $screenshots,
         'cat_name'    => $term ? $term->name : '',
         'cat_link'    => $term ? get_category_link($term->term_id) : '',
-        'download'    => home_url('/download-apk?pid=' . $post_id),
+        'download'    => alogweb_download_url($post_id),
     );
 }
 

@@ -26,7 +26,7 @@
 	<?php if(!wp_is_mobile() ):?>
 	<dd class="dd-download">
 		<div class="btn-download">
-			<span class="txt-download">Download</span>
+			<span class="txt-download">Get this app</span>
 		</div>
 	</dd>
 	<?php endif;?>

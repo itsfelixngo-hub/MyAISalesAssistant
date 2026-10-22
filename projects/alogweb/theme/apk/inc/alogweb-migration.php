@@ -69,7 +69,8 @@ add_filter('robots_txt', function ($output) {
         'Disallow: /wp-includes/',
         'Disallow: /wp-content/plugins/',
         'Disallow: /author/',        // 404s now - see alogweb-hardening.php
-        'Disallow: /download-apk',   // a redirect step, one URL per ?pid
+        'Disallow: /' . ALOGWEB_DOWNLOAD_PATH . '/',   // a redirect step, one URL per ?pid
+        'Disallow: /' . ALOGWEB_DOWNLOAD_PATH . '?',
         'Disallow: /*?s=',           // search results, infinite by definition
         'Disallow: /*?author=',
         'Disallow: /*?replytocom',
@@ -103,7 +104,7 @@ add_filter('wp_sitemaps_add_provider', function ($provider, $name) {
 /**
  * Keep the download interstitial out of the pages sitemap.
  *
- * robots.txt already disallows /download-apk, and listing in a sitemap a URL
+ * robots.txt already disallows /official-source/, and listing in a sitemap a URL
  * that robots.txt forbids is a contradiction Search Console reports as an
  * error: the sitemap asks Google to index the page, robots.txt refuses to let
  * it read the page. Google can then index the bare URL with no content behind
@@ -114,7 +115,7 @@ add_filter('wp_sitemaps_add_provider', function ($provider, $name) {
  * page.
  */
 add_filter('wp_sitemaps_posts_query_args', function ($args, $post_type) {
-    // A noindexed post in the sitemap is the same contradiction /download-apk
+    // A noindexed post in the sitemap is the same contradiction /official-source/
     // was: the sitemap asks Google to index it while the page asks not to be.
     // Search Console reports it, and the two signals argue in public.
     if ($post_type === 'post') {
