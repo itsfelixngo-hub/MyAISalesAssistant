@@ -22,7 +22,10 @@ function alogweb_ads_slots() {
     return array(
         'head'   => array('Head (AdSense loader / verification)', 'Printed inside &lt;head&gt;. The AdSense code snippet goes here - it verifies the site and loads ads with one install.'),
         'list'   => array('Listing pages', 'Between the sections on the home and archive pages.'),
-        'single' => array('App page, under the article', 'After "About this app", before related apps.'),
+        'single_top_mobile'  => array('App page, top - mobile (320x50)', 'Under the screenshots, before "About this app". Phones and tablets only.'),
+        'single_top_desktop' => array('App page, top - desktop (728x90)', 'The same place, desktop only. Exactly one of the two is printed, chosen on the server.'),
+        'single_mid'         => array('App page, mid-article (300x250)', 'After the second paragraph of "About this app", or at its end when there are fewer.'),
+        'single' => array('App page, end of article (native banner)', 'After "About this app", before "More in this category".'),
         'footer' => array('Footer', 'Just before &lt;/body&gt;. Good for a sticky or anchor unit.'),
     );
 }
@@ -58,10 +61,58 @@ function alogweb_ads_print($slot) {
     echo "\n" . $code . "\n";   // Raw on purpose - see the file header.
 }
 
+/**
+ * The app-page slots, wrapped so a banner can never push the layout sideways.
+ *
+ * Only on a single post: pages (About, Privacy, Contact) are singular too, and
+ * is_singular('post') is what keeps them out. Feeds never reach a template, and
+ * the_content in a feed is not the main query - see alogweb_ads_mid_article().
+ */
+function alogweb_ads_app_slot($position, $slot) {
+    if (!is_singular('post') || is_feed() || !alogweb_ads_active()) { return ''; }
+    $code = trim((string) alogweb_ads_option()[$slot]);
+    if ($code === '') { return ''; }
+    // Raw on purpose - see the file header.
+    return "\n<div class=\"alog-ad alog-ad-" . esc_attr($position) . "\">\n" . $code . "\n</div>\n";
+}
+
+/**
+ * Under the screenshots. One banner or the other is printed, never both:
+ * hiding the unused one with CSS still loads it, and a banner nobody can see
+ * that still counts an impression is exactly what an ad network bans you for.
+ * nginx keys its page cache on the same test, so the choice survives caching.
+ */
+function alogweb_ads_single_top() {
+    echo alogweb_ads_app_slot('top', wp_is_mobile() ? 'single_top_mobile' : 'single_top_desktop');
+}
+
+/**
+ * After the second paragraph of the article, or at its end when it has fewer.
+ *
+ * Priority 30: after wpautop (10) has made the paragraphs, and after the APK
+ * wording filter (20) - which must not get a chance to reach into ad code.
+ * Only the main post's own content, so related cards, widgets and feeds that
+ * also run the_content are left alone.
+ */
+function alogweb_ads_mid_article($content) {
+    if (!is_singular('post') || !in_the_loop() || !is_main_query()) { return $content; }
+    $ad = alogweb_ads_app_slot('mid', 'single_mid');
+    if ($ad === '') { return $content; }
+
+    $at = 0;
+    for ($i = 0; $i < 2; $i++) {
+        $at = stripos($content, '</p>', $at);
+        if ($at === false) { return $content . $ad; }
+        $at += 4;
+    }
+    return substr($content, 0, $at) . $ad . substr($content, $at);
+}
+add_filter('the_content', 'alogweb_ads_mid_article', 30);
+
 // The three names the templates already call. Defined here, which runs before
 // functions.php reaches its own function_exists() stubs.
 if (!function_exists('ads_head'))   { function ads_head()   { alogweb_ads_print('list'); } }
-if (!function_exists('ads_single')) { function ads_single() { alogweb_ads_print('single'); } }
+if (!function_exists('ads_single')) { function ads_single() { echo alogweb_ads_app_slot('end', 'single'); } }
 if (!function_exists('ads_footer')) { function ads_footer() { alogweb_ads_print('footer'); } }
 
 add_action('wp_head', function () { alogweb_ads_print('head'); }, 5);
