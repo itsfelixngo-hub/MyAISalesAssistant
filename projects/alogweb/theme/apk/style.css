@@ -227,6 +227,11 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .alog-ad{margin:24px auto; max-width:100%; overflow:hidden; text-align:center; clear:both;}
 .alog-ad iframe,.alog-ad img{max-width:100%; margin:0 auto; border-radius:0;}
 .alog-ad a{text-decoration:none;}
+/* Inside the card grid: a full row of its own, with dense packing so the cards
+   after it backfill any cell the span would otherwise leave empty. */
+.grid:has(> .alog-ad){grid-auto-flow:row dense;}
+.alog-ad-in-grid{grid-column:1/-1; margin:0; padding:16px 0; box-shadow:inset 0 -1px 0 var(--line);}
+.serp-ad .alog-ad{margin:0;}
 
 /* ============================================================ download */
 .dl{max-width:430px; margin:0 auto; text-align:center; padding:34px 0;}

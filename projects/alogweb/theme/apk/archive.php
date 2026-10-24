@@ -16,8 +16,21 @@ $count = isset($term->count) ? (int) $term->count : 0;
 
 <?php if (have_posts()) : ?>
 	<div class="grid">
-		<?php while (have_posts()) { the_post(); get_template_part('parts/app', 'card'); } ?>
+		<?php
+		// The native banner goes after the fourth card and spans the row. The grid
+		// runs 1 to 4 columns by screen width, so that is the end of the first row
+		// at full width, and dense packing keeps the grid free of holes otherwise.
+		$alogweb_card = 0;
+		while (have_posts()) {
+			the_post();
+			get_template_part('parts/app', 'card');
+			if (++$alogweb_card === 4 && function_exists('alogweb_ads_list_native')) {
+				echo alogweb_ads_list_native('alog-ad-in-grid');
+			}
+		}
+		?>
 	</div>
+	<?php if (function_exists('alogweb_ads_list_bottom')) { alogweb_ads_list_bottom(); } ?>
 	<?php alogweb_pagination(); ?>
 <?php else : ?>
 	<p class="empty">No apps in this category yet.</p>
