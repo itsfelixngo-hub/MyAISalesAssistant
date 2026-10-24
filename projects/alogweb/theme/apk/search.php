@@ -50,6 +50,10 @@ $found = (int) $GLOBALS['wp_query']->found_posts;
 				<?php echo alogweb_rating_html($app, 11); ?>
 			</p>
 		</li>
+		<?php if ($GLOBALS['wp_query']->current_post === 0 && function_exists('alogweb_ads_list_native')) {
+			$alogweb_ad = alogweb_ads_list_native();
+			if ($alogweb_ad) { echo '<li class="serp-item serp-ad">' . $alogweb_ad . '</li>'; }
+		} ?>
 		<?php endwhile; ?>
 	</ol>
 	<?php alogweb_pagination(); ?>

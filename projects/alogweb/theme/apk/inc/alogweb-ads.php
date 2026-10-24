@@ -21,7 +21,8 @@ if (!defined('ABSPATH')) { exit; }
 function alogweb_ads_slots() {
     return array(
         'head'   => array('Head (AdSense loader / verification)', 'Printed inside &lt;head&gt;. The AdSense code snippet goes here - it verifies the site and loads ads with one install.'),
-        'list'   => array('Listing pages', 'Between the sections on the home and archive pages.'),
+        'list'   => array('Listing &amp; search, after the first block (native banner)', 'Home: after Featured. Category: after the first row of apps. Search: after the first result. Printed once per page.'),
+        'list_bottom'        => array('Listing pages, end of list (300x250)', 'Home and category pages, after the last block of apps. Not on search.'),
         'single_top_mobile'  => array('App page, top - mobile (320x50)', 'Under the screenshots, before "About this app". Phones and tablets only.'),
         'single_top_desktop' => array('App page, top - desktop (728x90)', 'The same place, desktop only. Exactly one of the two is printed, chosen on the server.'),
         'single_mid'         => array('App page, mid-article (300x250)', 'After the second paragraph of "About this app", or at its end when there are fewer.'),
@@ -61,19 +62,67 @@ function alogweb_ads_print($slot) {
     echo "\n" . $code . "\n";   // Raw on purpose - see the file header.
 }
 
+/** At most this many ad units on one page, the footer unit included. */
+const ALOGWEB_ADS_MAX = 3;
+
 /**
- * The app-page slots, wrapped so a banner can never push the layout sideways.
+ * Which set of slots this page gets: 'single', 'list', 'search', or '' for none.
  *
- * Only on a single post: pages (About, Privacy, Contact) are singular too, and
- * is_singular('post') is what keeps them out. Feeds never reach a template, and
- * the_content in a feed is not the main query - see alogweb_ads_mid_article().
+ * Pages - About, Privacy, Contact, Terms, the official-source step - carry no
+ * ads at all. The front page is checked first so that a static front page, which
+ * is also is_page(), still counts as a listing.
  */
-function alogweb_ads_app_slot($position, $slot) {
-    if (!is_singular('post') || is_feed() || !alogweb_ads_active()) { return ''; }
+function alogweb_ads_context() {
+    if (is_feed() || is_404()) { return ''; }
+    if (is_front_page() || is_home()) { return 'list'; }
+    if (is_page()) { return ''; }
+    if (is_singular('post')) { return 'single'; }
+    if (is_search()) { return 'search'; }
+    if (is_category() || is_archive()) { return 'list'; }
+    return '';
+}
+
+/**
+ * Claims $slot for this page, or says no.
+ *
+ * No slot prints twice on one page: a native banner renders into a container
+ * with a fixed id, and a second copy of the same code finds that id taken and
+ * shows nothing - while still loading. And no page goes past ALOGWEB_ADS_MAX,
+ * counted in the order the page is rendered, so the first slots win.
+ */
+function alogweb_ads_take($slot, $contexts) {
+    static $taken = array();
+    if (!in_array(alogweb_ads_context(), (array) $contexts, true) || !alogweb_ads_active()) { return ''; }
+    if (isset($taken[$slot]) || count($taken) >= ALOGWEB_ADS_MAX) { return ''; }
     $code = trim((string) alogweb_ads_option()[$slot]);
     if ($code === '') { return ''; }
+    $taken[$slot] = true;
+    return $code;
+}
+
+/** One ad unit in its box, so a banner can never push the layout sideways. */
+function alogweb_ads_unit($position, $slot, $contexts, $extra_class = '') {
+    $code = alogweb_ads_take($slot, $contexts);
+    if ($code === '') { return ''; }
+    $class = 'alog-ad alog-ad-' . $position . ($extra_class ? ' ' . $extra_class : '');
     // Raw on purpose - see the file header.
-    return "\n<div class=\"alog-ad alog-ad-" . esc_attr($position) . "\">\n" . $code . "\n</div>\n";
+    return "\n<div class=\"" . esc_attr($class) . "\">\n" . $code . "\n</div>\n";
+}
+
+function alogweb_ads_app_slot($position, $slot) {
+    return alogweb_ads_unit($position, $slot, 'single');
+}
+
+/**
+ * The native banner on listings and search. $extra_class places it: inside the
+ * card grid it has to span the row, inside the results list it is a list item.
+ */
+function alogweb_ads_list_native($extra_class = '') {
+    return alogweb_ads_unit('first', 'list', array('list', 'search'), $extra_class);
+}
+
+function alogweb_ads_list_bottom() {
+    echo alogweb_ads_unit('bottom', 'list_bottom', 'list');
 }
 
 /**
@@ -111,12 +160,19 @@ add_filter('the_content', 'alogweb_ads_mid_article', 30);
 
 // The three names the templates already call. Defined here, which runs before
 // functions.php reaches its own function_exists() stubs.
-if (!function_exists('ads_head'))   { function ads_head()   { alogweb_ads_print('list'); } }
+if (!function_exists('ads_head'))   { function ads_head()   { echo alogweb_ads_list_native(); } }
 if (!function_exists('ads_single')) { function ads_single() { echo alogweb_ads_app_slot('end', 'single'); } }
 if (!function_exists('ads_footer')) { function ads_footer() { alogweb_ads_print('footer'); } }
 
 add_action('wp_head', function () { alogweb_ads_print('head'); }, 5);
-add_action('wp_footer', function () { alogweb_ads_print('footer'); }, 20);
+
+// Counts towards the cap and stays off pages like the in-content slots. Last
+// to render, so on an app page whose three slots are all filled it is the one
+// that gives way.
+add_action('wp_footer', function () {
+    $code = alogweb_ads_take('footer', array('single', 'list', 'search'));
+    if ($code !== '') { echo "\n" . $code . "\n"; }
+}, 20);
 
 /**
  * /ads.txt, from the same screen.

@@ -79,4 +79,6 @@ foreach ($sections as $cat) {
 	);
 }
 
+if (function_exists('alogweb_ads_list_bottom')) { alogweb_ads_list_bottom(); }
+
 get_footer();
