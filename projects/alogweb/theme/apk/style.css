@@ -221,6 +221,13 @@ mark{background:var(--gold-wash); color:inherit; border-radius:2px; padding:0 2p
 .article table{width:100%; border-collapse:collapse; font-size:14px; margin-bottom:15px;}
 .article th,.article td{border:1px solid var(--line); padding:8px 10px; text-align:left;}
 
+/* Ad slots (inc/alogweb-ads.php). Banners are fixed-width iframes, so the box
+   clips rather than letting a 728px unit widen the page on a narrow screen.
+   The mid slot sits inside .article, whose image and link styles are undone. */
+.alog-ad{margin:24px auto; max-width:100%; overflow:hidden; text-align:center; clear:both;}
+.alog-ad iframe,.alog-ad img{max-width:100%; margin:0 auto; border-radius:0;}
+.alog-ad a{text-decoration:none;}
+
 /* ============================================================ download */
 .dl{max-width:430px; margin:0 auto; text-align:center; padding:34px 0;}
 .dl > img{width:76px; height:76px; border-radius:17px; border:1px solid var(--line); margin:0 auto 14px;}

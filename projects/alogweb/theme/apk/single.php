@@ -72,6 +72,8 @@ while (have_posts()) : the_post();
 			</div>
 		<?php endif; ?>
 
+		<?php if (function_exists('alogweb_ads_single_top')) { alogweb_ads_single_top(); } ?>
+
 		<article class="article">
 			<h2>About this app</h2>
 			<p class="headline"><?php the_title(); ?></p>

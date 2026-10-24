@@ -51,9 +51,19 @@ wait_healthy alogweb-nginx 60
 # every nginx change since the first deploy silently did not.
 #
 # Recreating the container is the only thing that re-resolves the mount.
+#
+# Every single-file mount is compared, not only default.conf: a change that
+# touched just fastcgi-cache.conf (the page cache key, say) used to look
+# "already current" and never reach the running container. Keep this list in
+# step with the nginx volumes in docker-compose.yml.
 log "Applying nginx configuration"
-host_conf="$(md5sum "$PROJECT_DIR/nginx/default.conf" | awk '{print $1}')"
-live_conf="$(dc exec -T alogweb-nginx md5sum /etc/nginx/conf.d/default.conf 2>/dev/null | awk '{print $1}')"
+host_conf=""
+live_conf=""
+for pair in default.conf:default.conf static-cache.conf:00-static-cache.conf \
+            fastcgi-cache.conf:00-fastcgi-cache.conf static.conf:static.conf; do
+    host_conf+="$(md5sum "$PROJECT_DIR/nginx/${pair%%:*}" | awk '{print $1}') "
+    live_conf+="$(dc exec -T alogweb-nginx md5sum "/etc/nginx/conf.d/${pair#*:}" 2>/dev/null | awk '{print $1}') "
+done
 
 if [ "$host_conf" = "$live_conf" ]; then
     log "nginx configuration is already current"
